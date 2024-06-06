@@ -6,7 +6,7 @@ import yaml
 #0dc3b3b0446b871143ef4993c923d3e32da9033a
 #os.environ['WANDB_API_KEY'] = "c465dd55c08ec111e077cf0454ba111b3a764a78"
 from transformers import Trainer
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+#os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 class AWP:
     def __init__(self, model, adv_param="weight", adv_lr=0.1, adv_eps=0.0001):
         self.model = model
@@ -263,6 +263,11 @@ class SaveModelCallback(TrainerCallback):
         kwargs["model"].save_pretrained(peft_model_path)
         kwargs["tokenizer"].save_pretrained(peft_model_path)
 
+def process(input_str):
+    stripped_str = input_str.strip('[]')
+    sentences = [s.strip('"') for s in stripped_str.split('","')]
+    return  ' '.join(sentences)
+
     
 def train(args):
     # set the wandb project where this run will be logged
@@ -280,6 +285,15 @@ def train(args):
     ### load data
     df_train = pd.read_csv(args.train_data).reset_index(drop = True)
     df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
+
+    df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
+    df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
+    df_train.loc[:, 'response_b'] = df_train['response_b'].apply(process)
+    
+    df_valid.loc[:, 'prompt'] = df_valid['prompt'].apply(process)
+    df_valid.loc[:, 'response_a'] = df_valid['response_a'].apply(process)
+    df_valid.loc[:, 'response_b'] = df_valid['response_b'].apply(process)
+    
     ### process dataset 
     tokenizer = AutoTokenizer.from_pretrained(MODEL)
     tokenizer.add_special_tokens({"pad_token":"<pad>"})
@@ -289,7 +303,7 @@ def train(args):
         sentences = [" # Prompt" + "\n" + example['prompt'] + "\n\n" + "# Answer A" + "\n" + example['response_a'] + "\n\n" +  "# Answer B" + "\n" + example['response_b']]
         #print(f"sentences is {sentences}")
         tokenized_example = tokenizer(sentences, truncation=True, padding='max_length',
-                                      max_length=args.MAX_INPUT, add_special_tokens=False)
+                                      max_length=args.MAX_INPUT, add_special_tokens=True)
         tokenized_example['label'] = example['label']
         return tokenized_example
     
@@ -318,18 +332,20 @@ def train(args):
     
     
     bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,  # 使用4bit量化
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=False
+        load_in_8bit=True,  # 使用8bit量化
+        bnb_8bit_quant_type='nf8',
+        bnb_8bit_compute_dtype=torch.float16,
+        bnb_8bit_use_double_quant=False
     )
     
-    config = AutoConfig.from_pretrained(MODEL_PATH)
+    #config = AutoConfig.from_pretrained(args.MODEL)
     model = LlamaForSequenceClassification.from_pretrained(
         MODEL,
         num_labels=3,
-        torch_dtype=torch.bfloat16,
+        torch_dtype=torch.float16,
         quantization_config=bnb_config,
-        config = config)
+        #config = config,
+        device_map="auto")
     model.config.pad_token_id = tokenizer.pad_token_id
     model.resize_token_embeddings(len(tokenizer))
     
@@ -342,10 +358,11 @@ def train(args):
         r=args.lora_r,
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,
-        target_modules=["q_proj", "v_proj"]  # Target specific modules
+        bias = 'none',
+        target_modules=["q_proj", "v_proj", 'o_proj', 'k_proj']  # Target specific modules
     )
     model = get_peft_model(model, peft_config)
-    
+    print(model.print_trainable_parameters())
     for key in model.state_dict():
         print(key, model.state_dict()[key].shape)
     
@@ -403,7 +420,7 @@ def train(args):
     )
     
     trainer.train()
-    # trainer.add_callback(SaveModelCallback)
+    trainer.add_callback(SaveModelCallback)
     # trainer.save_model(args.output_dir)
     wandb.finish()
 
@@ -443,7 +460,7 @@ if __name__ == "__main__":
     # args = parser.parse_args()
 
     parser = argparse.ArgumentParser(description='Demo of argparse')
-    parser.add_argument('--config', default='train.yaml', type=str, help='Path to the config file', required=True)
+    parser.add_argument('--config', default='train.yaml', type=str, help='Path to the config file', required=False)
     args = parser.parse_args()
 
     config = load_config(args.config)
