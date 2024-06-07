@@ -3,14 +3,14 @@ valid_data: 'dataset/random_valid.csv'
 per_device_train_batch_size: 1
 per_device_eval_batch_size: 1
 learning_rate: 1.e-5
-lr_end: 2.e-6
+lr_end: 5.e-7
 warmup_ratio: 0.1
 num_train_epochs: 2
 gradient_accumulation_steps: 16
 logging_steps: 5
 eval_steps: 200
 save_steps: 200
-weight_decay: 1.e-4
+weight_decay: 1.e-5
 MAX_INPUT: 1024
 MODEL: 'meta-llama/llama-3-transformers-8b-chat-hf-v1'
 dropout_rate: 0.1
@@ -19,7 +19,7 @@ awp_eps: 1.e-4
 awp_start_epoch: 0.5
 label_smoothing_factor: 0
 output_dir: 'output'
-use_cache: True
+use_cache: False
 token_type: 'MC'
 lora_r: 16
 lora_alpha: 16

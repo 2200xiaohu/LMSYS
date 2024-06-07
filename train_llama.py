@@ -6,7 +6,7 @@ import yaml
 #0dc3b3b0446b871143ef4993c923d3e32da9033a
 #os.environ['WANDB_API_KEY'] = "c465dd55c08ec111e077cf0454ba111b3a764a78"
 from transformers import Trainer
-#os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
+#os.environ["CUDA_VISIBLE_DEVICES"]="0"
 class AWP:
     def __init__(self, model, adv_param="weight", adv_lr=0.1, adv_eps=0.0001):
         self.model = model
@@ -93,6 +93,7 @@ class CustomTrainer(Trainer):
         logits = outputs.get("logits")
 
         #print(f"Logits shape: {logits.shape}, Labels shape: {labels.shape}")
+        #print(f"Logits {logits}, Labels shape: {labels}")
 
         # Use CrossEntropyLoss for classification
         loss_fct = nn.CrossEntropyLoss()
@@ -334,15 +335,22 @@ def train(args):
     bnb_config = BitsAndBytesConfig(
         load_in_8bit=True,  # 使用8bit量化
         bnb_8bit_quant_type='nf8',
-        bnb_8bit_compute_dtype=torch.float16,
+        bnb_8bit_compute_dtype=torch.bfloat16,
         bnb_8bit_use_double_quant=False
     )
+
+    # bnb_config = BitsAndBytesConfig(
+    #     load_in_4bit=True,  # 使用8bit量化
+    #     bnb_4bit_quant_type='nf4',
+    #     bnb_4bit_compute_dtype=torch.bfloat16,
+    #     bnb_4bit_use_double_quant=False
+    # )
     
     #config = AutoConfig.from_pretrained(args.MODEL)
     model = LlamaForSequenceClassification.from_pretrained(
         MODEL,
         num_labels=3,
-        torch_dtype=torch.float16,
+        torch_dtype=torch.bfloat16,
         quantization_config=bnb_config,
         #config = config,
         device_map="auto")
@@ -359,7 +367,7 @@ def train(args):
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,
         bias = 'none',
-        target_modules=["q_proj", "v_proj", 'o_proj', 'k_proj']  # Target specific modules
+        target_modules=["v_proj", 'o_proj']  # Target specific modules
     )
     model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
@@ -420,7 +428,7 @@ def train(args):
     )
     
     trainer.train()
-    trainer.add_callback(SaveModelCallback)
+    #trainer.add_callback(SaveModelCallback)
     # trainer.save_model(args.output_dir)
     wandb.finish()
 
