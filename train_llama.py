@@ -332,19 +332,19 @@ def train(args):
 
     
     
-    bnb_config = BitsAndBytesConfig(
-        load_in_8bit=True,  # 使用8bit量化
-        bnb_8bit_quant_type='nf8',
-        bnb_8bit_compute_dtype=torch.bfloat16,
-        bnb_8bit_use_double_quant=False
-    )
-
     # bnb_config = BitsAndBytesConfig(
-    #     load_in_4bit=True,  # 使用8bit量化
-    #     bnb_4bit_quant_type='nf4',
-    #     bnb_4bit_compute_dtype=torch.bfloat16,
-    #     bnb_4bit_use_double_quant=False
+    #     load_in_8bit=True,  # 使用8bit量化
+    #     bnb_8bit_quant_type='nf8',
+    #     bnb_8bit_compute_dtype=torch.bfloat16,
+    #     bnb_8bit_use_double_quant=False
     # )
+
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,  
+        bnb_4bit_quant_type='nf4',
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_use_double_quant=False
+    )
     
     #config = AutoConfig.from_pretrained(args.MODEL)
     model = LlamaForSequenceClassification.from_pretrained(
@@ -367,15 +367,15 @@ def train(args):
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,
         bias = 'none',
-        target_modules=["v_proj", 'o_proj']  # Target specific modules
+        target_modules="all-linear"  # Target specific modules
     )
     model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
     for key in model.state_dict():
-        print(key, model.state_dict()[key].shape)
+        print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")
     
     training_args = TrainingArguments(
-            warmup_ratio=args.warmup_ratio, 
+            warmup_steps=args.warmup_steps,
             learning_rate=args.learning_rate,
             per_device_train_batch_size=args.per_device_train_batch_size,
             per_device_eval_batch_size=args.per_device_eval_batch_size,
@@ -403,9 +403,7 @@ def train(args):
 
     scheduler = get_polynomial_decay_schedule_with_warmup(
         optimizer,
-        num_warmup_steps=int(args.warmup_ratio * training_args.num_train_epochs *
-        int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
-            training_args.gradient_accumulation_steps)),
+        num_warmup_steps=training_args.warmup_steps,
         num_training_steps=training_args.num_train_epochs *
         int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
             training_args.gradient_accumulation_steps),
