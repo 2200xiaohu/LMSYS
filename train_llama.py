@@ -6,7 +6,8 @@ import yaml
 #0dc3b3b0446b871143ef4993c923d3e32da9033a
 #os.environ['WANDB_API_KEY'] = "c465dd55c08ec111e077cf0454ba111b3a764a78"
 from transformers import Trainer
-#os.environ["CUDA_VISIBLE_DEVICES"]="0"
+#os.environ["CUDA_VISIBLE_DEVICES"]="0“
+
 class AWP:
     def __init__(self, model, adv_param="weight", adv_lr=0.1, adv_eps=0.0001):
         self.model = model
@@ -187,7 +188,31 @@ from datasets import Dataset
 from sklearn.metrics import log_loss
 import torch.nn as nn
 from peft import get_peft_config, PeftModel, PeftConfig, get_peft_model, LoraConfig, TaskType
-    
+
+import random
+def seed_everything(seed=None):
+    '''
+    固定seed
+    :param seed: int, 随机种子
+    '''
+    max_seed_value = np.iinfo(np.uint32).max
+    min_seed_value = np.iinfo(np.uint32).min
+
+    if (seed is None) or not (min_seed_value <= seed <= max_seed_value):
+        seed = random.randint(np.iinfo(np.uint32).min, np.iinfo(np.uint32).max)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    return seed
+
+
+seed_everything(42)
+
 @dataclass
 class DataCollatorForClassification:
     tokenizer: PreTrainedTokenizerBase
