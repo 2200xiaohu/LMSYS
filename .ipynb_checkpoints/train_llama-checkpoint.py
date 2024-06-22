@@ -50,7 +50,7 @@ class AWP:
         self.backup = {}
         self.backup_eps = {}
 
-
+TRAINING_ARGS_NAME = "traning_args.bin"
                 
 class CustomTrainer(Trainer):
     def __init__(self, 
@@ -101,6 +101,23 @@ class CustomTrainer(Trainer):
         loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
 
         return (loss, outputs) if return_outputs else loss
+
+    def save_model(self, output_dir=None, _internal_call=False):
+        output_dir = output_dir if output_dir is not None else self.args.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"Saving model checkpoint to {output_dir}")
+        model_to_save = self.model
+        state_dict = {k: v.to("cpu") for k, v in model_to_save.named_parameters() if v.requires_grad}
+        # Using Hugging Face's save_pretrained instead of PyTorch's torch.save
+        model_to_save.save_pretrained(output_dir, state_dict=state_dict, save_function=torch.save,
+                                      safe_serialization=False)
+
+        # Save tokenizer and training arguments as usual
+        if self.tokenizer is not None:
+            self.tokenizer.save_pretrained(output_dir)
+
+        print(self.args)
+        torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME, ))
         
     def training_step(self, model, inputs):
         """
@@ -182,7 +199,7 @@ from transformers import EarlyStoppingCallback
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase, PaddingStrategy
 from transformers import AutoModelForMultipleChoice, TrainingArguments, Trainer, RobertaForMultipleChoice, AutoModelForSequenceClassification, LlamaModel, LlamaForSequenceClassification, BitsAndBytesConfig
 import argparse
-from transformers import get_polynomial_decay_schedule_with_warmup, TrainerCallback
+from transformers import get_polynomial_decay_schedule_with_warmup, get_cosine_schedule_with_warmup, TrainerCallback
 import datasets
 from datasets import Dataset
 from sklearn.metrics import log_loss
@@ -265,7 +282,8 @@ def compute_metrics(p):
     probabilities = np.exp(logits) / np.sum(np.exp(logits), axis=-1, keepdims=True)
     #print(f"predict is {predictions}")
     labels = p.label_ids
-    #print(f"labels is {labels}")
+    # print(f"p is {p}")
+    # print(f"labels is {labels}")
     
     return {"log_loss": log_loss(labels, probabilities)}
 
@@ -290,9 +308,13 @@ class SaveModelCallback(TrainerCallback):
         kwargs["tokenizer"].save_pretrained(peft_model_path)
 
 def process(input_str):
-    stripped_str = input_str.strip('[]')
-    sentences = [s.strip('"') for s in stripped_str.split('","')]
-    return  ' '.join(sentences)
+    if len(input_str) < 10:
+        return 'None'
+    
+    else:
+        stripped_str = input_str.strip('[]')
+        sentences = [s.strip('"') for s in stripped_str.split('","')]
+        return  ' '.join(sentences)
 
     
 def train(args):
@@ -311,6 +333,8 @@ def train(args):
     ### load data
     df_train = pd.read_csv(args.train_data).reset_index(drop = True)
     df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
+    #df_train = df_train.loc[:500,:].reset_index(drop = True)
+    #df_valid = df_valid.loc[:100,:].reset_index(drop = True)
 
     df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
     df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
@@ -378,7 +402,8 @@ def train(args):
         torch_dtype=torch.bfloat16,
         quantization_config=bnb_config,
         #config = config,
-        device_map="auto")
+        device_map="auto",
+        trust_remote_code=True)
     model.config.pad_token_id = tokenizer.pad_token_id
     model.resize_token_embeddings(len(tokenizer))
     
@@ -391,8 +416,8 @@ def train(args):
         r=args.lora_r,
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,
-        bias = 'none',
-        target_modules="all-linear"  # Target specific modules
+        #bias = 'none',
+        target_modules=['q_proj','k_proj','v_proj','o_proj'] # Target specific modules
     )
     model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
@@ -426,16 +451,22 @@ def train(args):
     
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_args.learning_rate)
 
-    scheduler = get_polynomial_decay_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=training_args.warmup_steps,
-        num_training_steps=training_args.num_train_epochs *
-        int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
-            training_args.gradient_accumulation_steps),
-        power=1.0,
-        lr_end=args.lr_end
-    )
-    
+    # scheduler = get_polynomial_decay_schedule_with_warmup(
+    #     optimizer,
+    #     num_warmup_steps=training_args.warmup_steps,
+    #     num_training_steps=training_args.num_train_epochs *
+    #     int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
+    #         training_args.gradient_accumulation_steps),
+    #     power=1.0,
+    #     lr_end=args.lr_end
+    # )
+    scheduler = get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=training_args.warmup_steps,
+            num_training_steps=training_args.num_train_epochs *
+                int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
+                    training_args.gradient_accumulation_steps),
+            num_cycles = 3)
     trainer = CustomTrainer(
         model=model,
         args=training_args,

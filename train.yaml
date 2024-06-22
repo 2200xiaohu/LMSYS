@@ -5,14 +5,14 @@ per_device_eval_batch_size: 1
 learning_rate: 1.e-4
 lr_end: 1.e-6
 warmup_ratio: 0.1
-warmup_steps: 10
+warmup_steps: 20
 num_train_epochs: 2
 gradient_accumulation_steps: 16
 logging_steps: 5
 eval_steps: 200
 save_steps: 200
 weight_decay: 1.e-5
-MAX_INPUT: 1900
+MAX_INPUT: 1500
 MODEL: 'meta-llama/llama-3-transformers-8b-hf-v1'
 dropout_rate: 0.1
 awp_lr: 0
@@ -22,6 +22,6 @@ label_smoothing_factor: 0
 output_dir: 'output'
 use_cache: False
 token_type: 'MC'
-lora_r: 16
+lora_r: 8
 lora_alpha: 16
-lora_dropout: 0.1
+lora_dropout: 0.05
