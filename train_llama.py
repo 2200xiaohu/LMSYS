@@ -230,6 +230,52 @@ def seed_everything(seed=None):
 
 seed_everything(42)
 
+class CustomDataSet(Dataset):
+    def __init__(self, data, tokenizer, max_source_length, max_target_length, all_in_one):
+        super(CustomDataSet, self).__init__()
+        #self.data = data.sample(len(data), random_state=0).reset_index(drop=True)
+        self.data = data
+        self.tokenizer = tokenizer
+        self.max_source_length = max_source_length
+        self.max_target_length = max_target_length
+        self.all_in_one = all_in_one
+        # self.A_token = self.tokenizer.encode(text='A', add_special_tokens=False, truncation=True, )
+        # self.B_token = self.tokenizer.encode(text='B', add_special_tokens=False, truncation=True, )
+        # self.C_token = self.tokenizer.encode(text='C', add_special_tokens=False, truncation=True, )
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        now_data = self.data.loc[index]
+        r_a = now_data['instruction_a']
+        r_b = now_data['instruction_b']
+
+        templete_part1 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
+        templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
+
+        # templete_part2 = "###options\nA. Model A\nB. Model B\nC. Tie\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>"
+        # templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids']
+        
+        if self.all_in_one:
+            prompt_response = now_data['prompt_response']
+            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
+                                              max_length=self.max_source_length, padding=False)['input_ids']
+        else:
+            model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True,
+                                              max_length=self.max_source_length // 2, padding=False)['input_ids']
+            model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True,
+                                              max_length=self.max_source_length // 2, padding=False)['input_ids']
+            prompt_response_ids = model_a_input_ids + model_b_input_ids
+        
+        label = now_data['label']
+        input_ids = templete_part1_input_ids + prompt_response_ids# + templete_part2_input_ids
+        # print(f"input is {templete_part1 + r_a + r_b + templete_part2 + label}")
+        return {
+            "input_ids": input_ids,
+            "labels": label
+        }
+
 @dataclass
 class DataCollatorForClassification:
     tokenizer: PreTrainedTokenizerBase
@@ -247,7 +293,7 @@ class DataCollatorForClassification:
         batch = self.tokenizer.pad(
             features,
             padding=self.padding,
-            max_length=self.max_length,
+            max_length=self.max_length + 50,
             pad_to_multiple_of=self.pad_to_multiple_of,
             return_tensors='pt',
         )
@@ -335,27 +381,6 @@ def train(args):
     df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
     #df_train = df_train.loc[:500,:].reset_index(drop = True)
     #df_valid = df_valid.loc[:100,:].reset_index(drop = True)
-
-    df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
-    df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
-    df_train.loc[:, 'response_b'] = df_train['response_b'].apply(process)
-    
-    df_valid.loc[:, 'prompt'] = df_valid['prompt'].apply(process)
-    df_valid.loc[:, 'response_a'] = df_valid['response_a'].apply(process)
-    df_valid.loc[:, 'response_b'] = df_valid['response_b'].apply(process)
-    
-    ### process dataset 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL)
-    tokenizer.add_special_tokens({"pad_token":"<pad>"})
-    option_to_index = {option: idx for idx, option in enumerate('ABCDE')}
-    index_to_option = {v: k for k,v in option_to_index.items()}
-    def preprocess(example):
-        sentences = [" # Prompt" + "\n" + example['prompt'] + "\n\n" + "# Answer A" + "\n" + example['response_a'] + "\n\n" +  "# Answer B" + "\n" + example['response_b']]
-        #print(f"sentences is {sentences}")
-        tokenized_example = tokenizer(sentences, truncation=True, padding='max_length',
-                                      max_length=args.MAX_INPUT, add_special_tokens=True)
-        tokenized_example['label'] = example['label']
-        return tokenized_example
     
     train_dataset_path = './dataset_cache/' + args.train_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
     valid_dataset_path = './dataset_cache/' + args.valid_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
@@ -368,18 +393,14 @@ def train(args):
     if args.use_cache and os.path.exists(train_cache_path):
         tokenized_dataset = torch.load(train_cache_path)
     else:
-        dataset = datasets.Dataset.from_pandas(df_train)
-        tokenized_dataset = dataset.map(preprocess, remove_columns=['id', 'model_a', 'model_b', 'prompt', 'response_a', 'response_b'])
+        tokenized_dataset = MultiTurnDataSet(df_train, tokenizer, args.MAX_INPUT, 1, args.all_in_one)
         torch.save(tokenized_dataset, train_cache_path)
     print(args.use_cache)
     if args.use_cache and os.path.exists(valid_cache_path):
         tokenized_dataset_valid = torch.load(valid_cache_path)
     else:
-        dataset_valid = datasets.Dataset.from_pandas(df_valid)
-        tokenized_dataset_valid = dataset_valid.map(preprocess, remove_columns=['id', 'model_a', 'model_b', 'prompt', 'response_a', 'response_b'])
+        tokenized_dataset_valid = MultiTurnDataSet(df_valid, tokenizer, args.MAX_INPUT, 1, args.all_in_one)
         torch.save(tokenized_dataset_valid, valid_cache_path)   
-
-    
     
     # bnb_config = BitsAndBytesConfig(
     #     load_in_8bit=True,  # 使用8bit量化
@@ -387,12 +408,14 @@ def train(args):
     #     bnb_8bit_compute_dtype=torch.bfloat16,
     #     bnb_8bit_use_double_quant=False
     # )
-
+    tokenizer = AutoTokenizer.from_pretrained(MODEL)
+    tokenizer.add_special_tokens({"pad_token":"<pad>"})
+    
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,  
         bnb_4bit_quant_type='nf4',
         bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=False
+        bnb_4bit_use_double_quant=True
     )
     
     #config = AutoConfig.from_pretrained(args.MODEL)
@@ -421,8 +444,8 @@ def train(args):
     )
     model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
-    for key in model.state_dict():
-        print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")
+    # for key in model.state_dict():
+    #     print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")
     
     training_args = TrainingArguments(
             warmup_steps=args.warmup_steps,

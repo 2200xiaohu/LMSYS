@@ -295,15 +295,16 @@ class InstructionDataSet(Dataset):
         templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids']
         
         if self.all_in_one:
+            prompt_response = now_data['prompt_response']
+            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
+                                              max_length=self.max_source_length, padding=False)['input_ids']
+        else:
             model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True,
                                               max_length=self.max_source_length // 2, padding=False)['input_ids']
             model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True,
                                               max_length=self.max_source_length // 2, padding=False)['input_ids']
             prompt_response_ids = model_a_input_ids + model_b_input_ids
-        else:
-            prompt_response = now_data['prompt_response']
-            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
-                                              max_length=self.max_source_length, padding=False)['input_ids']
+            
         label = now_data['label']
         label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
         input_ids = templete_part1_input_ids + prompt_response_ids + templete_part2_input_ids + label_ids + [self.tokenizer.eos_token_id]
