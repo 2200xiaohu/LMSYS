@@ -348,7 +348,7 @@ class DataCollatorForInstruction:
         features = self.tokenizer.pad(
             features,
             padding=True,
-            max_length=max_label_length,
+            max_length=max_label_length + 50,
             pad_to_multiple_of=self.pad_to_multiple_of,
             return_tensors=return_tensors,
         )
