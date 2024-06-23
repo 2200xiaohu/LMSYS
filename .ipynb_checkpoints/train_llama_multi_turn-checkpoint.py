@@ -287,7 +287,7 @@ class DataCollatorForClassification:
         batch = self.tokenizer.pad(
             features,
             padding=self.padding,
-            max_length=self.max_length,
+            max_length=self.max_length + 50,
             pad_to_multiple_of=self.pad_to_multiple_of,
             return_tensors='pt',
         )
