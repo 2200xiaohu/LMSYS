@@ -268,13 +268,14 @@ seed_everything(42)
 
 from torch.utils.data import Dataset
 class InstructionDataSet(Dataset):
-    def __init__(self, data, tokenizer, max_source_length, max_target_length):
+    def __init__(self, data, tokenizer, max_source_length, max_target_length, all_in_one):
         super(InstructionDataSet, self).__init__()
         #self.data = data.sample(len(data), random_state=0).reset_index(drop=True)
         self.data = data
         self.tokenizer = tokenizer
         self.max_source_length = max_source_length
         self.max_target_length = max_target_length
+        self.all_in_one = all_in_one
         # self.A_token = self.tokenizer.encode(text='A', add_special_tokens=False, truncation=True, )
         # self.B_token = self.tokenizer.encode(text='B', add_special_tokens=False, truncation=True, )
         # self.C_token = self.tokenizer.encode(text='C', add_special_tokens=False, truncation=True, )
@@ -286,23 +287,26 @@ class InstructionDataSet(Dataset):
         now_data = self.data.loc[index]
         r_a = now_data['instruction_a']
         r_b = now_data['instruction_b']
-        background = "Here are two question-answering dialogues. Compare two model performance on answering question, determine which is better."
-        options = "###options\nA.Model A\nB. Model B\nC. Tie"
-        instruct_prompt = f"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere is {background}\n\n###Model A\n{r_a}###Model B\n{r_b}{options}\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>A<|end_of_text|>"
 
         templete_part1 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
-        templete_part1_input_ids = self.tokenizer.encode(text=templete_part1, add_special_tokens=True,)
-        
-        model_a_input_ids = self.tokenizer.encode(text=r_a, add_special_tokens=True, truncation=True,
-                                          max_length=self.max_source_length // 2)
-        model_b_input_ids = self.tokenizer.encode(text=r_b, add_special_tokens=True, truncation=True,
-                                          max_length=self.max_source_length // 2)
+        templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
+
         templete_part2 = "###options\nA. Model A\nB. Model B\nC. Tie\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>"
-        templete_part2_input_ids = self.tokenizer.encode(text=templete_part2, add_special_tokens=True,)
+        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids']
         
+        if self.all_in_one:
+            model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True,
+                                              max_length=self.max_source_length // 2, padding=False)['input_ids']
+            model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True,
+                                              max_length=self.max_source_length // 2, padding=False)['input_ids']
+            prompt_response_ids = model_a_input_ids + model_b_input_ids
+        else:
+            prompt_response = now_data['prompt_response']
+            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
+                                              max_length=self.max_source_length, padding=False)['input_ids']
         label = now_data['label']
-        label_ids = self.tokenizer.encode(text=label, add_special_tokens=False, truncation=True, )
-        input_ids = templete_part1_input_ids + model_a_input_ids + model_b_input_ids + templete_part2_input_ids + label_ids + [self.tokenizer.eos_token_id]
+        label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
+        input_ids = templete_part1_input_ids + prompt_response_ids + templete_part2_input_ids + label_ids + [self.tokenizer.eos_token_id]
         labels = [-100] * (len(input_ids) - 2) + label_ids + [self.tokenizer.eos_token_id]
         # print(f"input is {templete_part1 + r_a + r_b + templete_part2 + label}")
         return {
@@ -452,13 +456,13 @@ def train(args):
     if args.use_cache and os.path.exists(train_cache_path):
         tokenized_dataset = torch.load(train_cache_path)
     else:
-        tokenized_dataset = InstructionDataSet(df_train,tokenizer, args.MAX_INPUT, 1)
+        tokenized_dataset = InstructionDataSet(df_train,tokenizer, args.MAX_INPUT, 1, args.all_in_one)
         torch.save(tokenized_dataset, train_cache_path)
     print(args.use_cache)
     if args.use_cache and os.path.exists(valid_cache_path):
         tokenized_dataset_valid = torch.load(valid_cache_path)
     else:
-        tokenized_dataset_valid = InstructionDataSet(df_valid,tokenizer, args.MAX_INPUT, 1)
+        tokenized_dataset_valid = InstructionDataSet(df_valid,tokenizer, args.MAX_INPUT, 1, args.all_in_one)
         torch.save(tokenized_dataset_valid, valid_cache_path)   
 
     
