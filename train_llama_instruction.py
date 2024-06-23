@@ -483,8 +483,8 @@ def train(args):
                                                  torch_dtype=torch.bfloat16,
                                                  device_map="auto",
                                                  trust_remote_code=True)
-    #model.config.pad_token_id = tokenizer.pad_token_id
-    #model.resize_token_embeddings(len(tokenizer))
+    # model.config.pad_token_id = tokenizer.pad_token_id
+    # model.resize_token_embeddings(len(tokenizer))
     
     # config = AutoConfig.from_pretrained(MODEL)
     # config.hidden_dropout_prob = args.dropout_rate

@@ -233,7 +233,7 @@ seed_everything(42)
 from torch.utils.data import Dataset
 class MultiTurnDataSet(Dataset):
     def __init__(self, data, tokenizer, max_source_length, max_target_length):
-        super(InstructionDataSet, self).__init__()
+        super(MultiTurnDataSet, self).__init__()
         #self.data = data.sample(len(data), random_state=0).reset_index(drop=True)
         self.data = data
         self.tokenizer = tokenizer
@@ -253,14 +253,14 @@ class MultiTurnDataSet(Dataset):
         background = "Compare two model performance on answering question, determine which is better."
 
         templete_part1 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
-        templete_part1_input_ids = self.tokenizer.encode(text=templete_part1, add_special_tokens=True,)
+        templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
         
-        model_a_input_ids = self.tokenizer.encode(text=r_a, add_special_tokens=True, truncation=True,
-                                          max_length=self.max_source_length // 2)
-        model_b_input_ids = self.tokenizer.encode(text=r_b, add_special_tokens=True, truncation=True,
-                                          max_length=self.max_source_length // 2)
-        templete_part2 = "<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>"
-        templete_part2_input_ids = self.tokenizer.encode(text=templete_part2, add_special_tokens=True,)
+        model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True,
+                                          max_length=self.max_source_length // 2, padding=False)['input_ids']
+        model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True,
+                                          max_length=self.max_source_length // 2, padding=False)['input_ids']
+        templete_part2 = "###options\nA. Model A\nB. Model B\nC. Tie\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>"
+        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids']
         
         label = now_data['label']
         input_ids = templete_part1_input_ids + model_a_input_ids + model_b_input_ids + templete_part2_input_ids
@@ -379,6 +379,7 @@ def train(args):
     ### process dataset 
     config = AutoConfig.from_pretrained(MODEL, trust_remote_code=True)
     tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True)
+    tokenizer.add_special_tokens({"pad_token":"<pad>"})
     
     train_dataset_path = './dataset_cache/' + args.train_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
     valid_dataset_path = './dataset_cache/' + args.valid_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
@@ -413,7 +414,7 @@ def train(args):
         load_in_4bit=True,  
         bnb_4bit_quant_type='nf4',
         bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=False
+        bnb_4bit_use_double_quant=True
     )
     
     #config = AutoConfig.from_pretrained(args.MODEL)
@@ -442,8 +443,8 @@ def train(args):
     )
     model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
-    for key in model.state_dict():
-        print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")
+    # for key in model.state_dict():
+    #     print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")
     
     training_args = TrainingArguments(
             warmup_steps=args.warmup_steps,

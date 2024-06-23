@@ -22,6 +22,6 @@ label_smoothing_factor: 0
 output_dir: 'output'
 use_cache: False
 token_type: 'MC'
-lora_r: 8
+lora_r: 16
 lora_alpha: 16
 lora_dropout: 0.05
