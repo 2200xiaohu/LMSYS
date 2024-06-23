@@ -96,12 +96,17 @@ class CustomTrainer(Trainer):
     #     logits = outputs.get("logits")
 
     #     #print(f"Logits shape: {logits.shape}, Labels shape: {labels.shape}")
-    #     #print(f"Logits {logits}, Labels shape: {labels}")
+    #     #print(f"Logits {logits}, Labels: {labels}")
 
     #     # Use CrossEntropyLoss for classification
+    #     vocab_size = logits.shape[-1]
     #     loss_fct = nn.CrossEntropyLoss()
-    #     loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
-
+    #     logits = logits[:,:-1,:]
+    #     labels = labels[:,1:]
+    #     print(f"Logits shape: {logits.shape}, Labels shape: {labels.shape}")
+    #     loss = loss_fct(logits.view(-1, vocab_size), labels.view(-1))
+    #     if loss < 0.1:
+    #         print(f"Logits {logits}, Labels: {labels}")
     #     return (loss, outputs) if return_outputs else loss
 
     def save_model(self, output_dir=None, _internal_call=False):
@@ -282,7 +287,7 @@ class InstructionDataSet(Dataset):
         r_a = now_data['instruction_a']
         r_b = now_data['instruction_b']
         background = "Here are two question-answering dialogues. Compare two model performance on answering question, determine which is better."
-        options = "###options\nA.Model A\nB. Model B\nC.Tie"
+        options = "###options\nA.Model A\nB. Model B\nC. Tie"
         instruct_prompt = f"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere is {background}\n\n###Model A\n{r_a}###Model B\n{r_b}{options}\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>A<|end_of_text|>"
 
         templete_part1 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
@@ -299,7 +304,7 @@ class InstructionDataSet(Dataset):
         label_ids = self.tokenizer.encode(text=label, add_special_tokens=False, truncation=True, )
         input_ids = templete_part1_input_ids + model_a_input_ids + model_b_input_ids + templete_part2_input_ids + label_ids + [self.tokenizer.eos_token_id]
         labels = [-100] * (len(input_ids) - 2) + label_ids + [self.tokenizer.eos_token_id]
-
+        # print(f"input is {templete_part1 + r_a + r_b + templete_part2 + label}")
         return {
             "input_ids": input_ids,
             "labels": labels
@@ -420,8 +425,8 @@ def train(args):
     ### load data
     df_train = pd.read_csv(args.train_data).reset_index(drop = True)
     df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
-    df_train = df_train.loc[:500,:].reset_index(drop = True)
-    df_valid = df_valid.loc[:100,:].reset_index(drop = True)
+    #df_train = df_train.loc[:500,:].reset_index(drop = True)
+    #df_valid = df_valid.loc[:100,:].reset_index(drop = True)
 
     # df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
     # df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
@@ -433,8 +438,8 @@ def train(args):
     
     ### process dataset 
     config = AutoConfig.from_pretrained(MODEL, trust_remote_code=True)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL)
-    tokenizer.add_special_tokens({"pad_token":"<pad>"})
+    tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True)
+    #tokenizer.add_special_tokens({"pad_token":"<pad>"})
     
     train_dataset_path = './dataset_cache/' + args.train_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
     valid_dataset_path = './dataset_cache/' + args.valid_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
@@ -478,8 +483,8 @@ def train(args):
                                                  torch_dtype=torch.bfloat16,
                                                  device_map="auto",
                                                  trust_remote_code=True)
-    model.config.pad_token_id = tokenizer.pad_token_id
-    model.resize_token_embeddings(len(tokenizer))
+    #model.config.pad_token_id = tokenizer.pad_token_id
+    #model.resize_token_embeddings(len(tokenizer))
     
     # config = AutoConfig.from_pretrained(MODEL)
     # config.hidden_dropout_prob = args.dropout_rate

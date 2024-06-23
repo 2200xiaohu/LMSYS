@@ -4,3 +4,4 @@ dataset_cache/
 dataset/
 meta-llama/
 *.tar
+THUDM
