@@ -239,6 +239,7 @@ from peft import (
     get_peft_model,
     LoraConfig,
     TaskType,
+    prepare_model_for_kbit_training
 )
 import os
 
@@ -298,10 +299,10 @@ class InstructionDataSet(Dataset):
         model_b_input_ids = self.tokenizer.encode(text=r_b, add_special_tokens=True, truncation=True,
                                           max_length=self.max_source_length // 2)
         templete_part2 = "###options\nA. Model A\nB. Model B\nC. Tie\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>"
-        templete_part2_input_ids = self.tokenizer.encode(text=templete_part2, add_special_tokens=True,)
+        templete_part2_input_ids = self.tokenizer.encode(text=templete_part2, add_special_tokens=True)
         
         label = now_data['label']
-        label_ids = self.tokenizer.encode(text=label, add_special_tokens=False, truncation=True, )
+        label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
         input_ids = templete_part1_input_ids + model_a_input_ids + model_b_input_ids + templete_part2_input_ids + label_ids + [self.tokenizer.eos_token_id]
         labels = [-100] * (len(input_ids) - 2) + label_ids + [self.tokenizer.eos_token_id]
         # print(f"input is {templete_part1 + r_a + r_b + templete_part2 + label}")
@@ -354,7 +355,7 @@ class DataCollatorForInstruction:
             pad_to_multiple_of=self.pad_to_multiple_of,
             return_tensors=return_tensors,
         )
-
+        #print(f"len input is {len(features['input_ids'][0])}")
         # prepare decoder_input_ids
         if (
                 labels is not None
@@ -399,16 +400,6 @@ class SaveModelCallback(TrainerCallback):
         kwargs["model"].save_pretrained(peft_model_path)
         kwargs["tokenizer"].save_pretrained(peft_model_path)
 
-def process(input_str):
-    if len(input_str) < 10:
-        return 'None'
-    
-    else:
-        stripped_str = input_str.strip('[]')
-        sentences = [s.strip('"') for s in stripped_str.split('","')]
-        return  ' '.join(sentences)
-
-    
 def train(args):
     # set the wandb project where this run will be logged
     # os.environ["WANDB_PROJECT"]=args.output_dir
@@ -474,7 +465,7 @@ def train(args):
         load_in_4bit=True,  
         bnb_4bit_quant_type='nf4',
         bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=False
+        bnb_4bit_use_double_quant=True
     )
     
     model = AutoModelForCausalLM.from_pretrained(MODEL,
@@ -483,6 +474,7 @@ def train(args):
                                                  torch_dtype=torch.bfloat16,
                                                  device_map="auto",
                                                  trust_remote_code=True)
+    #model = prepare_model_for_kbit_training(model)
     #model.config.pad_token_id = tokenizer.pad_token_id
     #model.resize_token_embeddings(len(tokenizer))
     
@@ -569,7 +561,8 @@ def train(args):
         awp_eps = args.awp_eps,
         awp_start_epoch = args.awp_start_epoch
     )
-    
+    #model.gradient_checkpointing_enable()
+    #model.enable_input_require_grads()
     trainer.train()
     #trainer.add_callback(SaveModelCallback)
     # trainer.save_model(args.output_dir)

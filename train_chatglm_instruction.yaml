@@ -12,7 +12,7 @@ logging_steps: 5
 eval_steps: 200
 save_steps: 200
 weight_decay: 1.e-5
-MAX_INPUT: 1500
+MAX_INPUT: 3500
 MODEL: 'THUDM/chatglm2-6b'
 dropout_rate: 0.1
 awp_lr: 0
