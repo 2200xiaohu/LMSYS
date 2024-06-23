@@ -287,19 +287,16 @@ class InstructionDataSet(Dataset):
         now_data = self.data.loc[index]
         r_a = now_data['instruction_a']
         r_b = now_data['instruction_b']
-        background = "Here are two question-answering dialogues. Compare two model performance on answering question, determine which is better."
-        options = "###options\nA.Model A\nB. Model B\nC. Tie"
-        instruct_prompt = f"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere is {background}\n\n###Model A\n{r_a}###Model B\n{r_b}{options}\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>A<|end_of_text|>"
 
         templete_part1 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
-        templete_part1_input_ids = self.tokenizer.encode(text=templete_part1, add_special_tokens=True,)
+        templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
         
-        model_a_input_ids = self.tokenizer.encode(text=r_a, add_special_tokens=True, truncation=True,
-                                          max_length=self.max_source_length // 2)
-        model_b_input_ids = self.tokenizer.encode(text=r_b, add_special_tokens=True, truncation=True,
-                                          max_length=self.max_source_length // 2)
+        model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True,
+                                          max_length=self.max_source_length // 2, padding=False)['input_ids']
+        model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True,
+                                          max_length=self.max_source_length // 2, padding=False)['input_ids']
         templete_part2 = "###options\nA. Model A\nB. Model B\nC. Tie\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>"
-        templete_part2_input_ids = self.tokenizer.encode(text=templete_part2, add_special_tokens=True)
+        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids']
         
         label = now_data['label']
         label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
