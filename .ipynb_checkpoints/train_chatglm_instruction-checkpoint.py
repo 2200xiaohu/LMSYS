@@ -490,7 +490,7 @@ def train(args):
     # config.hidden_dropout_prob = args.dropout_rate
     # config.attention_probs_dropout_prob = args.dropout_rate
     peft_config = LoraConfig(
-        task_type=TaskType.SEQ_CLS,  # For sequence classification
+        task_type=TaskType.CAUSAL_LM,  # For sequence classification
         inference_mode=False,
         r=args.lora_r,
         lora_alpha=args.lora_alpha,
