@@ -497,8 +497,8 @@ def train(args):
     )
     model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
-    for key in model.state_dict():
-        print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")
+    # for key in model.state_dict():
+    #     print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")
         
     data_collator = DataCollatorForInstruction(
         tokenizer,

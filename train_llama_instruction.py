@@ -444,7 +444,7 @@ def train(args):
     ### process dataset 
     config = AutoConfig.from_pretrained(MODEL, trust_remote_code=True)
     tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True)
-    #tokenizer.add_special_tokens({"pad_token":"<pad>"})
+    tokenizer.add_special_tokens({"pad_token":"<pad>"})
     
     train_dataset_path = './dataset_cache/' + args.train_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
     valid_dataset_path = './dataset_cache/' + args.valid_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
@@ -479,7 +479,7 @@ def train(args):
         load_in_4bit=True,  
         bnb_4bit_quant_type='nf4',
         bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=False
+        bnb_4bit_use_double_quant=True
     )
     
     model = AutoModelForCausalLM.from_pretrained(MODEL,
@@ -488,25 +488,25 @@ def train(args):
                                                  torch_dtype=torch.bfloat16,
                                                  device_map="auto",
                                                  trust_remote_code=True)
-    # model.config.pad_token_id = tokenizer.pad_token_id
-    # model.resize_token_embeddings(len(tokenizer))
+    model.config.pad_token_id = tokenizer.pad_token_id
+    model.resize_token_embeddings(len(tokenizer))
     
     # config = AutoConfig.from_pretrained(MODEL)
     # config.hidden_dropout_prob = args.dropout_rate
     # config.attention_probs_dropout_prob = args.dropout_rate
     peft_config = LoraConfig(
-        task_type=TaskType.SEQ_CLS,  # For sequence classification
+        task_type=TaskType.CAUSAL_LM,  # For sequence classification
         inference_mode=False,
         r=args.lora_r,
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,
         #bias = 'none',
-        target_modules=['q_proj','k_proj','v_proj','o_proj'] # Target specific modules
+        target_modules=['q_proj','k_proj','v_proj'] #,'o_proj'
     )
     model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
-    for key in model.state_dict():
-        print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")
+    # for key in model.state_dict():
+    #     print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")
         
     data_collator = DataCollatorForInstruction(
         tokenizer,

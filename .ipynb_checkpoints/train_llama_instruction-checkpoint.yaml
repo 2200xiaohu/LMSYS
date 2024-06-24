@@ -1,6 +1,6 @@
-train_data: 'dataset/random_instruction_train.csv'
-valid_data: 'dataset/random_instruction_valid.csv'
-all_in_one: False
+train_data: 'dataset/random_all_in_one_train.csv'
+valid_data: 'dataset/random_all_in_one_valid.csv'
+all_in_one: True
 per_device_train_batch_size: 1
 per_device_eval_batch_size: 1
 learning_rate: 1.e-4
@@ -13,7 +13,7 @@ logging_steps: 5
 eval_steps: 200
 save_steps: 200
 weight_decay: 1.e-5
-MAX_INPUT: 1500
+MAX_INPUT: 3000
 MODEL: 'meta-llama/llama-3-transformers-8b-hf-v1'
 dropout_rate: 0.1
 awp_lr: 0
