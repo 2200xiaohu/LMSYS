@@ -230,6 +230,7 @@ def seed_everything(seed=None):
 
 seed_everything(42)
 
+from torch.utils.data import Dataset
 class CustomDataSet(Dataset):
     def __init__(self, data, tokenizer, max_source_length, max_target_length, all_in_one):
         super(CustomDataSet, self).__init__()
@@ -254,8 +255,8 @@ class CustomDataSet(Dataset):
         templete_part1 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
         templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
 
-        # templete_part2 = "###options\nA. Model A\nB. Model B\nC. Tie\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>"
-        # templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids']
+        templete_part2 = "###options\nA. Model A\nB. Model B\nC. Tie\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>"
+        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids']
         
         if self.all_in_one:
             prompt_response = now_data['prompt_response']
@@ -269,7 +270,7 @@ class CustomDataSet(Dataset):
             prompt_response_ids = model_a_input_ids + model_b_input_ids
         
         label = now_data['label']
-        input_ids = templete_part1_input_ids + prompt_response_ids# + templete_part2_input_ids
+        input_ids = templete_part1_input_ids + prompt_response_ids + templete_part2_input_ids
         # print(f"input is {templete_part1 + r_a + r_b + templete_part2 + label}")
         return {
             "input_ids": input_ids,
@@ -384,6 +385,10 @@ def train(args):
     
     train_dataset_path = './dataset_cache/' + args.train_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
     valid_dataset_path = './dataset_cache/' + args.valid_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
+
+    tokenizer = AutoTokenizer.from_pretrained(MODEL)
+    tokenizer.add_special_tokens({"pad_token":"<pad>"})
+    
     if not os.path.exists(train_dataset_path):
         os.makedirs(train_dataset_path)
     if not os.path.exists(valid_dataset_path):
@@ -393,24 +398,22 @@ def train(args):
     if args.use_cache and os.path.exists(train_cache_path):
         tokenized_dataset = torch.load(train_cache_path)
     else:
-        tokenized_dataset = MultiTurnDataSet(df_train, tokenizer, args.MAX_INPUT, 1, args.all_in_one)
+        tokenized_dataset = CustomDataSet(df_train, tokenizer, args.MAX_INPUT, 1, args.all_in_one)
         torch.save(tokenized_dataset, train_cache_path)
     print(args.use_cache)
     if args.use_cache and os.path.exists(valid_cache_path):
         tokenized_dataset_valid = torch.load(valid_cache_path)
     else:
-        tokenized_dataset_valid = MultiTurnDataSet(df_valid, tokenizer, args.MAX_INPUT, 1, args.all_in_one)
+        tokenized_dataset_valid = CustomDataSet(df_valid, tokenizer, args.MAX_INPUT, 1, args.all_in_one)
         torch.save(tokenized_dataset_valid, valid_cache_path)   
-    
+        
     # bnb_config = BitsAndBytesConfig(
     #     load_in_8bit=True,  # 使用8bit量化
     #     bnb_8bit_quant_type='nf8',
     #     bnb_8bit_compute_dtype=torch.bfloat16,
     #     bnb_8bit_use_double_quant=False
     # )
-    tokenizer = AutoTokenizer.from_pretrained(MODEL)
-    tokenizer.add_special_tokens({"pad_token":"<pad>"})
-    
+
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,  
         bnb_4bit_quant_type='nf4',
@@ -494,7 +497,7 @@ def train(args):
         model=model,
         args=training_args,
         tokenizer=tokenizer,
-        data_collator=DataCollatorForClassification(tokenizer=tokenizer),
+        data_collator=DataCollatorForClassification(tokenizer=tokenizer,max_length=args.MAX_INPUT),
         train_dataset=tokenized_dataset,
         eval_dataset=tokenized_dataset_valid,
         compute_metrics = compute_metrics,
