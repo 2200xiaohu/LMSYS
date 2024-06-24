@@ -545,7 +545,7 @@ if __name__ == "__main__":
     # args = parser.parse_args()
 
     parser = argparse.ArgumentParser(description='Demo of argparse')
-    parser.add_argument('--config', default='train.yaml', type=str, help='Path to the config file', required=False)
+    parser.add_argument('--config', default='train_llama_cls.yaml', type=str, help='Path to the config file', required=False)
     args = parser.parse_args()
 
     config = load_config(args.config)
