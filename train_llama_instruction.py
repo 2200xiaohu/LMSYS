@@ -431,7 +431,7 @@ def train(args):
     df_train = pd.read_csv(args.train_data).reset_index(drop = True)
     df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
     #df_train = df_train.loc[:500,:].reset_index(drop = True)
-    #df_valid = df_valid.loc[:100,:].reset_index(drop = True)
+    df_valid = df_valid.loc[:2,:].reset_index(drop = True)
 
     # df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
     # df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
