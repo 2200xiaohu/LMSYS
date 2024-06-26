@@ -309,7 +309,7 @@ class InstructionDataSet(Dataset):
         label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
         input_ids = templete_part1_input_ids + prompt_response_ids + templete_part2_input_ids + label_ids + [self.tokenizer.eos_token_id]
         labels = [-100] * (len(input_ids) - 2) + label_ids + [self.tokenizer.eos_token_id]
-        # print(f"input is {templete_part1 + r_a + r_b + templete_part2 + label}")
+        #print(f"input is {templete_part1 +prompt_response + templete_part2 + label}")
         return {
             "input_ids": input_ids,
             "labels": labels
