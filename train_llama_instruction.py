@@ -285,8 +285,6 @@ class InstructionDataSet(Dataset):
 
     def __getitem__(self, index):
         now_data = self.data.loc[index]
-        r_a = now_data['instruction_a']
-        r_b = now_data['instruction_b']
 
         templete_part1 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
         templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
@@ -299,6 +297,8 @@ class InstructionDataSet(Dataset):
             prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
                                               max_length=self.max_source_length, padding=False)['input_ids']
         else:
+            r_a = now_data['instruction_a']
+            r_b = now_data['instruction_b']
             model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True,
                                               max_length=self.max_source_length // 2, padding=False)['input_ids']
             model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True,
