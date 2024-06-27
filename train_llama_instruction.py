@@ -409,27 +409,27 @@ class SaveModelCallback(TrainerCallback):
         kwargs["model"].save_pretrained(peft_model_path)
         kwargs["tokenizer"].save_pretrained(peft_model_path)
 
-def process(input_str):
-    if len(input_str) < 10:
-        return 'None'
+# def process(input_str):
+#     if len(input_str) < 10:
+#         return 'None'
     
-    else:
-        stripped_str = input_str.strip('[]')
-        sentences = [s.strip('"') for s in stripped_str.split('","')]
-        return  ' '.join(sentences)
+#     else:
+#         stripped_str = input_str.strip('[]')
+#         sentences = [s.strip('"') for s in stripped_str.split('","')]
+#         return  ' '.join(sentences)
 
-def process(input_str):
-    return json.loads(input_str)
-
-def load_json(data, all_in_one):
-    if all_in_one:
-        data.loc[:, 'response_b'] = data['response_b'].apply(process)
-        return data
-    else:
-        data.loc[:, 'prompt'] = data['prompt'].apply(process)
-        data.loc[:, 'response_a'] = data['response_a'].apply(process)
-        data.loc[:, 'response_b'] = data['response_b'].apply(process)
-        return data
+# def process(input_str):
+#     return json.loads(input_str)
+# import json
+# def load_json(data, all_in_one):
+#     if all_in_one:
+#         data.loc[:, 'prompt_response'] = data['prompt_response'].apply(process)
+#         return data
+#     else:
+#         data.loc[:, 'prompt'] = data['prompt'].apply(process)
+#         data.loc[:, 'response_a'] = data['response_a'].apply(process)
+#         data.loc[:, 'response_b'] = data['response_b'].apply(process)
+#         return data
     
 def train(args):
     # set the wandb project where this run will be logged
@@ -448,8 +448,8 @@ def train(args):
     df_train = pd.read_csv(args.train_data).reset_index(drop = True)
     df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
 
-    df_train = load_json(df_train, args.all_in_one)
-    df_valid = load_json(df_valid, args.all_in_one)
+    # df_train = load_json(df_train, args.all_in_one)
+    # df_valid = load_json(df_valid, args.all_in_one)
     #df_train = df_train.loc[:500,:].reset_index(drop = True)
     df_valid = df_valid.loc[:2,:].reset_index(drop = True)
 
