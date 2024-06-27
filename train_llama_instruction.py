@@ -294,14 +294,14 @@ class InstructionDataSet(Dataset):
         
         if self.all_in_one:
             prompt_response = now_data['prompt_response']
-            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
+            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True, truncation_side='left',
                                               max_length=self.max_source_length, padding=False)['input_ids']
         else:
             r_a = now_data['instruction_a']
             r_b = now_data['instruction_b']
-            model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True,
+            model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True, truncation_side='left',
                                               max_length=self.max_source_length // 2, padding=False)['input_ids']
-            model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True,
+            model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True, truncation_side='left',
                                               max_length=self.max_source_length // 2, padding=False)['input_ids']
             prompt_response_ids = model_a_input_ids + model_b_input_ids
             
@@ -372,14 +372,14 @@ class DataCollatorForInstruction:
         return features
     
 def compute_metrics(p):
-    
     logits = p.predictions
     predictions = np.argmax(logits, axis=-1)
     
     probabilities = np.exp(logits) / np.sum(np.exp(logits), axis=-1, keepdims=True)
-    #print(f"predict is {predictions}")
+    #print(f"p is {p}")
+    #print(f"logits is {logits}")
     labels = p.label_ids
-    # print(f"p is {p}")
+    #print(f"labels is {labels}")
     # print(f"labels is {labels}")
     
     return {"log_loss": log_loss(labels, probabilities)}
@@ -534,10 +534,10 @@ def train(args):
             save_strategy="steps",
             save_steps=args.save_steps,
             load_best_model_at_end=False,
-            metric_for_best_model='logloss',
+            metric_for_best_model='log_loss',
             lr_scheduler_type='cosine',
             weight_decay=args.weight_decay,
-            save_total_limit=3,
+            save_total_limit=5,
             label_smoothing_factor=args.label_smoothing_factor,
             do_eval=False,
             evaluation_strategy="no"
