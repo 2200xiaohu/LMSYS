@@ -13,7 +13,7 @@ logging_steps: 5
 eval_steps: 200
 save_steps: 200
 weight_decay: 1.e-5
-MAX_INPUT: 5000
+MAX_INPUT: 6000
 MODEL: 'meta-llama/llama-3-transformers-8b-hf-v1'
 dropout_rate: 0.1
 awp_lr: 0

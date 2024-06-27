@@ -369,6 +369,11 @@ class DataCollatorForInstruction:
             decoder_input_ids = self.model.prepare_decoder_input_ids_from_labels(labels=features["labels"])
             features["decoder_input_ids"] = decoder_input_ids
         # breakpoint() # [(len(features[i]['input_ids']),len(features[i]['labels'])) for i in range(4)]
+        #print(features['input_ids'])
+        if self.tokenizer.pad_token_id in features['input_ids']:#
+            print(f"use padding")
+            #idx = features['input_ids'].index(128256)
+            #print(f"padding on: {features['input_ids'][idx-30,: idx+30]}")
         return features
     
 def compute_metrics(p):
@@ -413,6 +418,18 @@ def process(input_str):
         sentences = [s.strip('"') for s in stripped_str.split('","')]
         return  ' '.join(sentences)
 
+def process(input_str):
+    return json.loads(input_str)
+
+def load_json(data, all_in_one):
+    if all_in_one:
+        data.loc[:, 'response_b'] = data['response_b'].apply(process)
+        return data
+    else:
+        data.loc[:, 'prompt'] = data['prompt'].apply(process)
+        data.loc[:, 'response_a'] = data['response_a'].apply(process)
+        data.loc[:, 'response_b'] = data['response_b'].apply(process)
+        return data
     
 def train(args):
     # set the wandb project where this run will be logged
@@ -430,6 +447,9 @@ def train(args):
     ### load data
     df_train = pd.read_csv(args.train_data).reset_index(drop = True)
     df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
+
+    df_train = load_json(df_train, args.all_in_one)
+    df_valid = load_json(df_valid, args.all_in_one)
     #df_train = df_train.loc[:500,:].reset_index(drop = True)
     df_valid = df_valid.loc[:2,:].reset_index(drop = True)
 
