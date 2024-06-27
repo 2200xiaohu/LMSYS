@@ -294,14 +294,14 @@ class InstructionDataSet(Dataset):
         
         if self.all_in_one:
             prompt_response = now_data['prompt_response']
-            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True, truncation_side='left',
+            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
                                               max_length=self.max_source_length, padding=False)['input_ids']
         else:
             r_a = now_data['instruction_a']
             r_b = now_data['instruction_b']
-            model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True, truncation_side='left',
+            model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True,
                                               max_length=self.max_source_length // 2, padding=False)['input_ids']
-            model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True, truncation_side='left',
+            model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True,
                                               max_length=self.max_source_length // 2, padding=False)['input_ids']
             prompt_response_ids = model_a_input_ids + model_b_input_ids
             
@@ -443,7 +443,7 @@ def train(args):
     
     ### process dataset 
     config = AutoConfig.from_pretrained(MODEL, trust_remote_code=True)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, truncation_side = 'left')
     tokenizer.add_special_tokens({"pad_token":"<pad>"})
     
     train_dataset_path = './dataset_cache/' + args.train_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
