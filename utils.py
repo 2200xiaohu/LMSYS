@@ -21,41 +21,7 @@ def load_json(data):
     data.loc[:, 'response_b'] = data['response_b'].apply(process)
     return data
 
-def seperated_prompt_response(data, if_train):
-    """
-    seperate mutli turn prompt-response
-
-    return
-    prompt instruction_a instruction_b
-    """
-    output_as = []
-    output_bs = []
-    prompts = []
-    labels = []
-    ids = []
-    for idx, row in tqdm(data.iterrows(), total=len(data)):
-        prompt = row["prompt"]
-        response_a = row["response_a"]
-        response_b = row["response_b"]
-        id = row['id']
-        assert len(prompt) == len(response_a) == len(response_b)
-        for i in range(len(prompt)):
-            output_as.append(response_a[i])
-            output_bs.append(response_b[i]})
-            prompts.append()
-            ids.append(id)
-            if if_train:
-                label = row['label']
-                labels.append(label)
-    assert len(set(ids)) == len(data)
-    if if_train:
-        data = pd.DataFrame({'id': ids, 'instruction_a': output_as, 'instruction_b': output_bs, 'label': labels })
-    else:
-        data = pd.DataFrame({'id': ids, 'instruction_a': output_as, 'instruction_b': output_bs})
-    
-    return data
-
-def prompt_1(data)
+def prompt_1(data):
     '''
     #Model A
     Prompt1: xxx
@@ -127,7 +93,7 @@ def prompt_2(data, max_length, if_train):
                 if if_train:
                     labels.append(label)
     if if_train:           
-        data = pd.DataFrame({'id': ids, 'prompt_response': prompt_response, "labels": labels})
+        data = pd.DataFrame({'id': ids, 'prompt_response': prompt_response, "label": labels})
     else:
         data = pd.DataFrame({'id': ids, 'prompt_response': prompt_response})
     return data
@@ -157,13 +123,13 @@ def load_spilt_data(data_path, prompt_type, max_length, if_train):
     if prompt_type == 1:
         data = prompt_1(data)
     elif prompt_type == 2:
-        data = prompt_1(data, max_length, if_train)
+        data = prompt_2(data, max_length * 0.75, if_train)
     #split train and valid
     idx = data.id.unique()
     valid_idx = [idx[i] for i in range(len(idx)) if i % 20 == 0]
 
-    valid = data.loc[train.id.isin(valid_idx),].reset_index(drop = True)
-    train = data.loc[~train.id.isin(valid_idx),].reset_index(drop = True)
+    valid = data.loc[data.id.isin(valid_idx),].reset_index(drop = True)
+    train = data.loc[~data.id.isin(valid_idx),].reset_index(drop = True)
 
     return train, valid
 

@@ -286,7 +286,7 @@ class InstructionDataSet(Dataset):
 
     def __getitem__(self, index):
         now_data = self.data.loc[index]
-
+        
         templete_part1 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
         templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
 
@@ -295,6 +295,8 @@ class InstructionDataSet(Dataset):
         
         if self.all_in_one:
             prompt_response = now_data['prompt_response']
+            #print(f"id is {now_data['id']}")
+            #print(prompt_response)
             prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
                                               max_length=self.max_source_length, padding=False)['input_ids']
         else:
@@ -441,12 +443,13 @@ def train(args):
     s = strftime("%a_%d_%b_%H_%M", gmtime())
 
     wandb.init(project="LMSYS", config=args)
-        
+    wandb.save("train_llama_instruction.py")
+    wandb.save("train_llama_instruction.yaml")
     # HUGGING FACE MODEL
     MODEL = args.MODEL
     
     ### load data
-    df_train , df_valid = load_spilt_data(args.data_path)
+    df_train , df_valid = load_spilt_data(args.data_path, args.prompt_type, args.MAX_INPUT, args.if_train)
     # df_train = pd.read_csv(args.train_data).reset_index(drop = True)
     # df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
 
