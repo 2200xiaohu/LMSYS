@@ -466,6 +466,8 @@ def train(args):
     tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, truncation_side = 'left')
     tokenizer.add_special_tokens({"pad_token":"<pad>"})
     
+    print(f"arg is {args}")
+    
     train_dataset_path = './dataset_cache/' + args.train_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
     valid_dataset_path = './dataset_cache/' + args.valid_data.split('/')[-1].split('.')[0] + '_' + args.MODEL.replace('/','-') + '_' + args.token_type
     if not os.path.exists(train_dataset_path):
