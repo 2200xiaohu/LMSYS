@@ -7,6 +7,7 @@ import yaml
 #os.environ['WANDB_API_KEY'] = "c465dd55c08ec111e077cf0454ba111b3a764a78"
 from transformers import Trainer
 from typing import Any, Callable, Dict, List, NewType, Optional, Tuple, Union
+from utils import load_spilt_data
 
 #os.environ["CUDA_VISIBLE_DEVICES"]="0“
 
@@ -445,8 +446,9 @@ def train(args):
     MODEL = args.MODEL
     
     ### load data
-    df_train = pd.read_csv(args.train_data).reset_index(drop = True)
-    df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
+    df_train , df_valid = load_spilt_data(args.data_path)
+    # df_train = pd.read_csv(args.train_data).reset_index(drop = True)
+    # df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
 
     # df_train = load_json(df_train, args.all_in_one)
     # df_valid = load_json(df_valid, args.all_in_one)

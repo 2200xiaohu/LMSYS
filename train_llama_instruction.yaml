@@ -1,3 +1,4 @@
+data_path: "dataset/train.csv"
 train_data: 'dataset/random_all_in_one_train.csv'
 valid_data: 'dataset/random_all_in_one_valid.csv'
 all_in_one: True
