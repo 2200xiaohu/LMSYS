@@ -569,7 +569,7 @@ def train(args):
             metric_for_best_model='log_loss',
             lr_scheduler_type='cosine',
             weight_decay=args.weight_decay,
-            save_total_limit=5,
+            save_total_limit=15,
             label_smoothing_factor=args.label_smoothing_factor,
             do_eval=False,
             evaluation_strategy="no"
