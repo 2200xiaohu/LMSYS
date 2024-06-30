@@ -16,7 +16,7 @@ logging_steps: 5
 eval_steps: 200
 save_steps: 200
 weight_decay: 1.e-5
-MAX_INPUT: 3500
+MAX_INPUT: 2200
 MODEL: 'google/gemma-2-9b-it'
 dropout_rate: 0.1
 awp_lr: 0
@@ -27,5 +27,5 @@ output_dir: 'output'
 use_cache: False
 token_type: 'MC'
 lora_r: 32
-lora_alpha: 16
+lora_alpha: 64
 lora_dropout: 0.05

@@ -291,17 +291,18 @@ class InstructionDataSet(Dataset):
         templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
         
         templete_part2 = "\n###options\nA. Model A\nB. Model B\nC. Tie\n<end_of_turn>\n"
-        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids']
-
+        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids'][1:]
+        #print(f"templete_part2 is {templete_part2_input_ids}")
         templete_part3 = "<start_of_turn>model\n"
-        templete_part3_input_ids = self.tokenizer(text=templete_part3, add_special_tokens=True, padding=False)['input_ids']
+        templete_part3_input_ids = self.tokenizer(text=templete_part3, add_special_tokens=True, padding=False)['input_ids'][1:]
         
         if self.all_in_one:
             prompt_response = now_data['prompt_response']
             #print(f"id is {now_data['id']}")
             #print(prompt_response)
             prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
-                                              max_length=self.max_source_length, padding=False)['input_ids']
+                                              max_length=self.max_source_length, padding=False)['input_ids'][1:]
+            #print(prompt_response_ids)        
         else:
             r_a = now_data['instruction_a']
             r_b = now_data['instruction_b']
@@ -315,7 +316,7 @@ class InstructionDataSet(Dataset):
         label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
         input_ids = templete_part1_input_ids + prompt_response_ids + templete_part2_input_ids + templete_part3_input_ids + label_ids + [self.tokenizer.eos_token_id]
         labels = [-100] * (len(input_ids) - 2) + label_ids + [self.tokenizer.eos_token_id]
-        #print(f"input is {templete_part1 +prompt_response + templete_part2 + label}")
+        #print(f"input is {self.tokenizer.decode(input_ids)}")
         return {
             "input_ids": input_ids,
             "labels": labels
