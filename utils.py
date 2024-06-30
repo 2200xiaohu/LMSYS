@@ -100,7 +100,7 @@ def prompt_2(data, max_length, if_train):
     return data
     
 
-def load_spilt_data(data_path, prompt_type, max_length, if_train):
+def load_split_data(data_path, prompt_type, max_length, if_train):
     """
     prompt_type: [1, 2, 3]
     if_train: True or False

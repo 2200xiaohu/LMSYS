@@ -7,7 +7,7 @@ import yaml
 #os.environ['WANDB_API_KEY'] = "c465dd55c08ec111e077cf0454ba111b3a764a78"
 from transformers import Trainer
 from typing import Any, Callable, Dict, List, NewType, Optional, Tuple, Union
-from utils import load_spilt_data
+from utils import load_split_data
 
 #os.environ["CUDA_VISIBLE_DEVICES"]="0“
 
