@@ -288,13 +288,13 @@ class InstructionDataSet(Dataset):
     def __getitem__(self, index):
         now_data = self.data.loc[index]
         
-        templete_part1 = "<|system|>\nYou are a helpful assistant good at judging conversations.<|end|>\n<|user|>\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n"
+        templete_part1 = "<|im_start|>system\nYou are a helpful assistant good at judging conversations.<|im_end|>\n<|im_start|>user\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n"
         templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
         
-        templete_part2 = "\n###options\nA. Model A\nB. Model B\nC. Tie\n<|end|>\n"
+        templete_part2 = "\n###options\nA. Model A\nB. Model B\nC. Tie\n<|im_end|>\n"
         templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids']
         #print(f"templete_part2 is {templete_part2_input_ids}")
-        templete_part3 = "<|assistant|>\n"
+        templete_part3 = "<|im_start|>assistant\n"
         templete_part3_input_ids = self.tokenizer(text=templete_part3, add_special_tokens=True, padding=False)['input_ids']
         
         if self.all_in_one:
@@ -533,7 +533,7 @@ def train(args):
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,
         #bias = 'none',
-        target_modules=['qkv_proj'] #,'o_proj'
+        target_modules=['q_proj', 'k_proj', 'v_proj'] #,'o_proj'
     )
     model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
@@ -649,7 +649,7 @@ if __name__ == "__main__":
     # args = parser.parse_args()
 
     parser = argparse.ArgumentParser(description='Demo of argparse')
-    parser.add_argument('--config', default='train_phi3_instruction.yaml', type=str, help='Path to the config file', required=False)
+    parser.add_argument('--config', default='train_qwen2_instruction.yaml', type=str, help='Path to the config file', required=False)
     args = parser.parse_args()
 
     config = load_config(args.config)
