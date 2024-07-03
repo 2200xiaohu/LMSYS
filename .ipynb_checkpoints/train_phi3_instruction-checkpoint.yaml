@@ -16,8 +16,8 @@ logging_steps: 5
 eval_steps: 200
 save_steps: 200
 weight_decay: 1.e-5
-MAX_INPUT: 3000
-MODEL: 'microsoft/LLM-Research/Phi-3-mini-4k-instruct'
+MAX_INPUT: 1600
+MODEL: 'microsoft/Phi-3-mini-4k-instruct'
 dropout_rate: 0.1
 awp_lr: 0
 awp_eps: 1.e-4

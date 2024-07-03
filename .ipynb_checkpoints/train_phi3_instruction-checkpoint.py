@@ -503,8 +503,7 @@ def train(args):
     # bnb_config = BitsAndBytesConfig(
     #     load_in_8bit=True,  # 使用8bit量化
     #     bnb_8bit_quant_type='nf8',
-    #     bnb_8bit_compute_dtype=torch.bfloat16,
-    #     bnb_8bit_use_double_quant=False
+    #     bnb_8bit_compute_dtype=torch.bfloat16,    #     bnb_8bit_use_double_quant=False
     # )
 
     bnb_config = BitsAndBytesConfig(
@@ -523,7 +522,7 @@ def train(args):
                                                  attn_implementation='eager')
     # model.config.pad_token_id = tokenizer.pad_token_id
     # model.resize_token_embeddings(len(tokenizer))
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
+    #model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     # config = AutoConfig.from_pretrained(MODEL)
     # config.hidden_dropout_prob = args.dropout_rate
     # config.attention_probs_dropout_prob = args.dropout_rate
@@ -607,8 +606,8 @@ def train(args):
         awp_eps = args.awp_eps,
         awp_start_epoch = args.awp_start_epoch
     )
-    model.gradient_checkpointing_enable()
-    model.enable_input_require_grads()
+    # model.gradient_checkpointing_enable()
+    # model.enable_input_require_grads()
     trainer.train()
     #trainer.add_callback(SaveModelCallback)
     # trainer.save_model(args.output_dir)
