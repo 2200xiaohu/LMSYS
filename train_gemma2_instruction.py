@@ -240,6 +240,7 @@ from peft import (
     get_peft_model,
     LoraConfig,
     TaskType,
+    prepare_model_for_kbit_training
 )
 import os
 
@@ -447,8 +448,8 @@ def train(args):
     s = strftime("%a_%d_%b_%H_%M", gmtime())
 
     wandb.init(project="LMSYS", config=args)
-    wandb.save("train_llama_instruction.py")
-    wandb.save("train_llama_instruction.yaml")
+    wandb.save("train_gemma2_instruction.py")
+    wandb.save("train_gemma2_instruction.yaml")
     # HUGGING FACE MODEL
     MODEL = args.MODEL
     
@@ -520,22 +521,33 @@ def train(args):
                                                  device_map="auto",
                                                  trust_remote_code=True,
                                                  attn_implementation='eager')
+
     # model.config.pad_token_id = tokenizer.pad_token_id
     # model.resize_token_embeddings(len(tokenizer))
-    
+    #model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     # config = AutoConfig.from_pretrained(MODEL)
     # config.hidden_dropout_prob = args.dropout_rate
     # config.attention_probs_dropout_prob = args.dropout_rate
-    peft_config = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,  # For sequence classification
-        inference_mode=False,
-        r=args.lora_r,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-        #bias = 'none',
-        target_modules=['q_proj','k_proj','v_proj'] #,'o_proj'
-    )
-    model = get_peft_model(model, peft_config)
+
+    
+    checkpoint = None
+    if args.resume_from_checkpoint is not None:
+        checkpoint = args.resume_from_checkpoint
+        print(f"Using checkpoint: {checkpoint}")
+        model = PeftModel.from_pretrained(model, checkpoint, is_trainable=True)
+        print(model)
+        
+    else:
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,  # For sequence classification
+            inference_mode=False,
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            #bias = 'none',
+            target_modules=['q_proj','k_proj','v_proj'] #,'o_proj'
+        )
+        model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
     # for key in model.state_dict():
     #     print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")
@@ -606,7 +618,10 @@ def train(args):
         awp_eps = args.awp_eps,
         awp_start_epoch = args.awp_start_epoch
     )
-    
+
+
+    #model.gradient_checkpointing_enable()
+    #model.enable_input_require_grads()
     trainer.train()
     #trainer.add_callback(SaveModelCallback)
     # trainer.save_model(args.output_dir)
