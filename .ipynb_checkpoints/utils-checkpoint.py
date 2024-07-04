@@ -100,7 +100,7 @@ def prompt_2(data, max_length, if_train):
     return data
     
 
-def load_split_data(data_path, prompt_type, max_length, if_train):
+def load_split_data(data_path, prompt_type, max_length, if_train, split):
     """
     prompt_type: [1, 2, 3]
     if_train: True or False
@@ -125,7 +125,7 @@ def load_split_data(data_path, prompt_type, max_length, if_train):
         data = prompt_1(data)
     elif prompt_type == 2:
         data = prompt_2(data, max_length * 0.75, if_train)
-    if if_train:
+    if split:
         #split train and valid
         idx = data.id.unique()
         valid_idx = [idx[i] for i in range(len(idx)) if i % 20 == 0]
@@ -134,7 +134,7 @@ def load_split_data(data_path, prompt_type, max_length, if_train):
         train = data.loc[~data.id.isin(valid_idx),].reset_index(drop = True)
     
         return train, valid
-    return data
+    return data, None
 
     
     

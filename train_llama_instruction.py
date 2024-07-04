@@ -449,7 +449,7 @@ def train(args):
     MODEL = args.MODEL
     
     ### load data
-    df_train , df_valid = load_spilt_data(args.data_path, args.prompt_type, args.MAX_INPUT, args.if_train)
+    df_train , df_valid = load_spilt_data(args.data_path, args.prompt_type, args.MAX_INPUT, args.if_train, args.split)
     # df_train = pd.read_csv(args.train_data).reset_index(drop = True)
     # df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
 

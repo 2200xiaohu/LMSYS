@@ -454,14 +454,15 @@ def train(args):
     MODEL = args.MODEL
     
     ### load data
-    df_train , df_valid = load_split_data(args.data_path, args.prompt_type, args.MAX_INPUT, args.if_train)
+    df_train , df_valid = load_split_data(args.data_path, args.prompt_type, args.MAX_INPUT, args.if_train, args.split)
     # df_train = pd.read_csv(args.train_data).reset_index(drop = True)
     # df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
 
     # df_train = load_json(df_train, args.all_in_one)
     # df_valid = load_json(df_valid, args.all_in_one)
     #df_train = df_train.loc[:500,:].reset_index(drop = True)
-    df_valid = df_valid.loc[:2,:].reset_index(drop = True)
+    if df_valid == None:
+        df_valid = df_train.loc[:2,:].reset_index(drop = True)
 
     # df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
     # df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
