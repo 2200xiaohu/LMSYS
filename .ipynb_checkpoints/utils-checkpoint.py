@@ -105,10 +105,13 @@ def load_split_data(data_path, prompt_type, max_length, if_train, split):
     prompt_type: [1, 2, 3]
     if_train: True or False
     """
-    data = pd.read_csv(data_path)
-
-    #safely load data
-    data = load_json(data)
+    if "csv" in data_path:
+        data = pd.read_csv(data_path)
+    
+        #safely load data
+        data = load_json(data)
+    elif "json" in data_path:
+        data = pd.read_json(data_path)
 
     #seperate prompt-response
     data = data.explode(['prompt','response_a','response_b']).reset_index(drop = True)

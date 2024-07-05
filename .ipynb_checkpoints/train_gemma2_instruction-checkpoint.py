@@ -383,7 +383,8 @@ class DataCollatorForInstruction:
             #idx = features['input_ids'].index(128256)
             #print(f"padding on: {features['input_ids'][idx-30,: idx+30]}")
         return features
-    
+#[num, seq_length, vocab_size]    
+#generaate : [num, max_token, vocab_size]
 def compute_metrics(p):
     logits = p.predictions
     predictions = np.argmax(logits, axis=-1)
@@ -605,7 +606,7 @@ def train(args):
             num_training_steps=training_args.num_train_epochs *
                 int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
                     training_args.gradient_accumulation_steps),
-            num_cycles = 3)
+            num_cycles = 3)#3
     trainer = CustomTrainer(
         model=model,
         args=training_args,
