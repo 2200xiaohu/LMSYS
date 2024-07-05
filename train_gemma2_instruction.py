@@ -337,6 +337,7 @@ class DataCollatorForInstruction:
         if return_tensors is None:
             return_tensors = self.return_tensors
         labels = [feature["labels"] for feature in features] if "labels" in features[0].keys() else None
+        #print(f"label_pad_token_id is {self.label_pad_token_id}")
         # We have to pad the labels before calling `tokenizer.pad` as this method won't pad them and needs them of the
         # same length to return tensors.
         if labels is not None:
@@ -362,12 +363,13 @@ class DataCollatorForInstruction:
         # breakpoint()
         features = self.tokenizer.pad(
             features,
-            padding=True,
-            max_length=max_label_length,
+            padding='longest',
+            #max_length=max_label_length,
             pad_to_multiple_of=self.pad_to_multiple_of,
             return_tensors=return_tensors,
         )
-
+        #print(f"features is {features}")
+        #print(f"labels is {features['labels']}")
         # prepare decoder_input_ids
         if (
                 labels is not None
@@ -378,25 +380,33 @@ class DataCollatorForInstruction:
             features["decoder_input_ids"] = decoder_input_ids
         # breakpoint() # [(len(features[i]['input_ids']),len(features[i]['labels'])) for i in range(4)]
         #print(features['input_ids'])
-        if self.tokenizer.pad_token_id in features['input_ids']:#
-            print(f"use padding")
-            #idx = features['input_ids'].index(128256)
-            #print(f"padding on: {features['input_ids'][idx-30,: idx+30]}")
+        # if self.tokenizer.pad_token_id in features['input_ids']:#
+        #     print(f"use padding")
+        #     #idx = features['input_ids'].index(128256)
+        #     #print(f"padding on: {features['input_ids'][idx-30,: idx+30]}")
         return features
 #[num, seq_length, vocab_size]    
 #generaate : [num, max_token, vocab_size]
 def compute_metrics(p):
     logits = p.predictions
-    predictions = np.argmax(logits, axis=-1)
-    
-    probabilities = np.exp(logits) / np.sum(np.exp(logits), axis=-1, keepdims=True)
-    #print(f"p is {p}")
-    #print(f"logits is {logits}")
+    #print(f"logits before shape is {logits.shape}")
+    #predictions = np.argmax(logits, axis=-1)
+    A_prob, B_prob, C_prob = logits[:,0,A_TOKEN_IDS].squeeze(1), logits[:,0,B_TOKEN_IDS].squeeze(1), logits[:,0,C_TOKEN_IDS].squeeze(1)
+    #print(f"A_prob {A_prob.shape}")
+    logits = torch.Tensor([[A_prob,B_prob,C_prob]])
+    logits = torch.softmax(logits, dim=-1)
+    #print(f"logits shape is {logits.shape}")
+    # print(f"logits is {logits}")
     labels = p.label_ids
+    token2num = {A_TOKEN_IDS[0]:0, B_TOKEN_IDS[0]:1, C_TOKEN_IDS[0]:2}
+    labels = labels[:,-2]
+    labels = np.array([token2num.get(val, val) for val in labels])
     #print(f"labels is {labels}")
-    # print(f"labels is {labels}")
-    
-    return {"log_loss": log_loss(labels, probabilities)}
+    #print(f"labels shape is {labels.shape}")
+    prediction = logits.squeeze(0).transpose(0, 1).tolist()
+    #print(f"labels shape is {labels.shape}")
+    #print(f"prediction shape is {prediction}, len {len(prediction)}")
+    return {"log_loss": log_loss(labels, prediction, labels=[0,1,2])}
 
 class SaveModelCallback(TrainerCallback):
     def save_model(self, args, state, kwargs):
@@ -439,6 +449,24 @@ class SaveModelCallback(TrainerCallback):
 #         data.loc[:, 'response_a'] = data['response_a'].apply(process)
 #         data.loc[:, 'response_b'] = data['response_b'].apply(process)
 #         return data
+
+def preprocess_logits_for_metrics(logits, labels):
+    # print(logits.shape)
+    # print(labels.shape)
+    # print(logits)
+    # print(labels)
+    logits = logits.cpu()
+    labels = labels.cpu()
+    bs, seq_len, vocab_size = logits.shape
+    mask = labels != -100
+    _, indices = torch.max(mask, dim=1)
+    
+    row_indices = torch.arange(bs).unsqueeze(1)
+    col_indices = (indices.unsqueeze(1) + torch.arange(2)).clamp(max=seq_len-1)
+    
+    logits = logits[row_indices, col_indices,:]
+    #print(f"logits.shape is {logits.shape}")
+    return logits
     
 def train(args):
     # set the wandb project where this run will be logged
@@ -456,13 +484,14 @@ def train(args):
     
     ### load data
     df_train , df_valid = load_split_data(args.data_path, args.prompt_type, args.MAX_INPUT, args.if_train, args.split)
-    # df_train = pd.read_csv(args.train_data).reset_index(drop = True)
-    # df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
+    #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
+    #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
 
     # df_train = load_json(df_train, args.all_in_one)
     # df_valid = load_json(df_valid, args.all_in_one)
     #df_train = df_train.loc[:500,:].reset_index(drop = True)
-    if df_valid == None:
+    #df_valid = df_valid.loc[:200,:].reset_index(drop = True)
+    if args.split == False:
         df_valid = df_train.loc[:2,:].reset_index(drop = True)
 
     # df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
@@ -500,7 +529,13 @@ def train(args):
         tokenized_dataset_valid = InstructionDataSet(df_valid,tokenizer, args.MAX_INPUT, 1, args.all_in_one)
         torch.save(tokenized_dataset_valid, valid_cache_path)   
 
-    
+    global A_TOKEN_IDS
+    A_TOKEN_IDS = tokenizer('A',add_special_tokens=True, truncation=True, max_length=1024)['input_ids'][1:]
+    global B_TOKEN_IDS 
+    B_TOKEN_IDS = tokenizer('B',add_special_tokens=True, truncation=True, max_length=1024)['input_ids'][1:]
+    global C_TOKEN_IDS 
+    C_TOKEN_IDS = tokenizer('C',add_special_tokens=True, truncation=True, max_length=1024)['input_ids'][1:]
+
     
     # bnb_config = BitsAndBytesConfig(
     #     load_in_8bit=True,  # 使用8bit量化
@@ -533,7 +568,7 @@ def train(args):
 
     
     checkpoint = None
-    if args.resume_from_checkpoint is not None:
+    if len(args.resume_from_checkpoint) != 0:
         checkpoint = args.resume_from_checkpoint
         print(f"Using checkpoint: {checkpoint}")
         model = PeftModel.from_pretrained(model, checkpoint, is_trainable=True)
@@ -566,7 +601,7 @@ def train(args):
             warmup_steps=args.warmup_steps,
             learning_rate=args.learning_rate,
             per_device_train_batch_size=args.per_device_train_batch_size,
-            #per_device_eval_batch_size=args.per_device_eval_batch_size,
+            per_device_eval_batch_size=args.per_device_eval_batch_size,
             num_train_epochs=args.num_train_epochs,
             output_dir=f"output/{wandb.run.name}",
             report_to="wandb",
@@ -575,8 +610,8 @@ def train(args):
             fp16=False,
             gradient_accumulation_steps=args.gradient_accumulation_steps,
             logging_steps=args.logging_steps,
-            #evaluation_strategy='steps',
-            #eval_steps=args.eval_steps,
+            evaluation_strategy='steps',
+            eval_steps=args.eval_steps,
             save_strategy="steps",
             save_steps=args.save_steps,
             load_best_model_at_end=False,
@@ -585,8 +620,8 @@ def train(args):
             weight_decay=args.weight_decay,
             save_total_limit=15,
             label_smoothing_factor=args.label_smoothing_factor,
-            do_eval=False,
-            evaluation_strategy="no"
+            # do_eval=False,
+            # evaluation_strategy="no"
         )
     
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_args.learning_rate)
@@ -618,7 +653,8 @@ def train(args):
         optimizers=(optimizer, scheduler),
         awp_lr = args.awp_lr,
         awp_eps = args.awp_eps,
-        awp_start_epoch = args.awp_start_epoch
+        awp_start_epoch = args.awp_start_epoch,
+        preprocess_logits_for_metrics = preprocess_logits_for_metrics
     )
 
 
