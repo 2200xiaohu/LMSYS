@@ -350,7 +350,9 @@ class DataCollatorForInstruction:
                 )
 
             padding_side = self.tokenizer.padding_side
+            # print(padding_side)
             for feature in features:
+                # print("before", feature['labels'])
                 remainder = [self.label_pad_token_id] * (max_label_length - len(feature["labels"]))
                 if isinstance(feature["labels"], list):
                     feature["labels"] = (
@@ -360,6 +362,8 @@ class DataCollatorForInstruction:
                     feature["labels"] = np.concatenate([feature["labels"], remainder]).astype(np.int64)
                 else:
                     feature["labels"] = np.concatenate([remainder, feature["labels"]]).astype(np.int64)
+                # print("after", feature['labels'])
+                # print("-" * 60)
         # breakpoint()
         features = self.tokenizer.pad(
             features,
@@ -391,21 +395,35 @@ def compute_metrics(p):
     logits = p.predictions
     #print(f"logits before shape is {logits.shape}")
     #predictions = np.argmax(logits, axis=-1)
-    A_prob, B_prob, C_prob = logits[:,0,A_TOKEN_IDS].squeeze(1), logits[:,0,B_TOKEN_IDS].squeeze(1), logits[:,0,C_TOKEN_IDS].squeeze(1)
-    #print(f"A_prob {A_prob.shape}")
-    logits = torch.Tensor([[A_prob,B_prob,C_prob]])
-    logits = torch.softmax(logits, dim=-1)
-    #print(f"logits shape is {logits.shape}")
+    # A_prob, B_prob, C_prob = logits[:,0,A_TOKEN_IDS].squeeze(1), logits[:,0,B_TOKEN_IDS].squeeze(1), logits[:,0,C_TOKEN_IDS].squeeze(1)
+    # #print(f"A_prob {A_prob.shape}")
+    # logits = torch.Tensor([[A_prob,B_prob,C_prob]])
+    # logits = torch.softmax(logits, dim=-1)
+    logits = logits[:,0,[A_TOKEN_IDS,B_TOKEN_IDS,C_TOKEN_IDS]]
+    logits = torch.softmax(torch.tensor(logits).reshape(-1,3), dim=-1)
+    # print(f"logits shape is {logits.shape}")
     # print(f"logits is {logits}")
-    labels = p.label_ids
+    labels = torch.tensor(p.label_ids)
+    # print(f"labels is {labels}")
+    # print(f"labels shape is {labels.shape}")
+
+    # get first none -100
+    bs, seq_len = labels.shape
+    mask = labels != -100
+    _, indices = torch.max(mask, dim=1)
+    
+    row_indices = torch.arange(bs).unsqueeze(1)
+    col_indices = (indices.unsqueeze(1) + torch.arange(1)).clamp(max=seq_len-1)
+
+    labels = labels[row_indices, col_indices]
+    
     token2num = {A_TOKEN_IDS[0]:0, B_TOKEN_IDS[0]:1, C_TOKEN_IDS[0]:2}
-    labels = labels[:,-2]
+    labels = labels.reshape(-1).numpy()
     labels = np.array([token2num.get(val, val) for val in labels])
-    #print(f"labels is {labels}")
-    #print(f"labels shape is {labels.shape}")
-    prediction = logits.squeeze(0).transpose(0, 1).tolist()
-    #print(f"labels shape is {labels.shape}")
-    #print(f"prediction shape is {prediction}, len {len(prediction)}")
+    # print(f"labels is {labels}")
+    # print(f"labels shape is {labels.shape}")
+    prediction = logits.tolist()
+    # print(f"prediction shape is {prediction}, len {len(prediction)}")
     return {"log_loss": log_loss(labels, prediction, labels=[0,1,2])}
 
 class SaveModelCallback(TrainerCallback):
@@ -465,7 +483,7 @@ def preprocess_logits_for_metrics(logits, labels):
     col_indices = (indices.unsqueeze(1) + torch.arange(2)).clamp(max=seq_len-1)
     
     logits = logits[row_indices, col_indices,:]
-    #print(f"logits.shape is {logits.shape}")
+    # print(f"logits.shape is {logits.shape}")
     return logits
     
 def train(args):
@@ -490,9 +508,14 @@ def train(args):
     # df_train = load_json(df_train, args.all_in_one)
     # df_valid = load_json(df_valid, args.all_in_one)
     #df_train = df_train.loc[:500,:].reset_index(drop = True)
-    #df_valid = df_valid.loc[:200,:].reset_index(drop = True)
+
+    if args.test_mode:
+        df_valid = df_valid.loc[:20,:].reset_index(drop = True)
+    # else:
+    #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
     if args.split == False:
-        df_valid = df_train.loc[:2,:].reset_index(drop = True)
+        #用原本的validation
+        _ , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True)
 
     # df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
     # df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
