@@ -13,9 +13,9 @@ lr_end: 1.e-6
 warmup_ratio: 0.1
 warmup_steps: 30
 num_train_epochs: 1
-gradient_accumulation_steps: 1
-logging_steps: 5
-eval_steps: 1
+gradient_accumulation_steps: 16
+logging_steps: 10
+eval_steps: 200
 save_steps: 200
 weight_decay: 1.e-5
 MAX_INPUT: 2300
@@ -31,3 +31,4 @@ token_type: 'MC'
 lora_r: 32
 lora_alpha: 64
 lora_dropout: 0.05
+test_mode: True

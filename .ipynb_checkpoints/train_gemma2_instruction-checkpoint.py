@@ -340,6 +340,7 @@ class DataCollatorForInstruction:
         #print(f"label_pad_token_id is {self.label_pad_token_id}")
         # We have to pad the labels before calling `tokenizer.pad` as this method won't pad them and needs them of the
         # same length to return tensors.
+        print("before", feature['labels'])
         if labels is not None:
             max_label_length = max(len(l) for l in labels)
             if self.pad_to_multiple_of is not None:
@@ -350,6 +351,7 @@ class DataCollatorForInstruction:
                 )
 
             padding_side = self.tokenizer.padding_side
+            print(padding_side)
             for feature in features:
                 remainder = [self.label_pad_token_id] * (max_label_length - len(feature["labels"]))
                 if isinstance(feature["labels"], list):
@@ -361,6 +363,7 @@ class DataCollatorForInstruction:
                 else:
                     feature["labels"] = np.concatenate([remainder, feature["labels"]]).astype(np.int64)
         # breakpoint()
+        print(feature['labels'])
         features = self.tokenizer.pad(
             features,
             padding='longest',
@@ -391,22 +394,35 @@ def compute_metrics(p):
     logits = p.predictions
     #print(f"logits before shape is {logits.shape}")
     #predictions = np.argmax(logits, axis=-1)
-    A_prob, B_prob, C_prob = logits[:,0,A_TOKEN_IDS].squeeze(1), logits[:,0,B_TOKEN_IDS].squeeze(1), logits[:,0,C_TOKEN_IDS].squeeze(1)
-    #print(f"A_prob {A_prob.shape}")
-    logits = torch.Tensor([[A_prob,B_prob,C_prob]])
-    logits = torch.softmax(logits, dim=-1)
-    #print(f"logits shape is {logits.shape}")
+    # A_prob, B_prob, C_prob = logits[:,0,A_TOKEN_IDS].squeeze(1), logits[:,0,B_TOKEN_IDS].squeeze(1), logits[:,0,C_TOKEN_IDS].squeeze(1)
+    # #print(f"A_prob {A_prob.shape}")
+    # logits = torch.Tensor([[A_prob,B_prob,C_prob]])
+    # logits = torch.softmax(logits, dim=-1)
+    logits = logits[:,0,[A_TOKEN_IDS,B_TOKEN_IDS,C_TOKEN_IDS]]
+    logits = torch.softmax(torch.tensor(logits).reshape(-1,3), dim=-1)
+    # print(f"logits shape is {logits.shape}")
     # print(f"logits is {logits}")
-    labels = p.label_ids
-    print(label_ids)
+    labels = torch.tensor(p.label_ids)
+    # print(f"labels is {labels}")
+    # print(f"labels shape is {labels.shape}")
+
+    # get first none -100
+    bs, seq_len = labels.shape
+    mask = labels != -100
+    _, indices = torch.max(mask, dim=1)
+    
+    row_indices = torch.arange(bs).unsqueeze(1)
+    col_indices = (indices.unsqueeze(1) + torch.arange(1)).clamp(max=seq_len-1)
+
+    labels = labels[row_indices, col_indices]
+    
     token2num = {A_TOKEN_IDS[0]:0, B_TOKEN_IDS[0]:1, C_TOKEN_IDS[0]:2}
-    labels = labels[:,-2]
+    labels = labels.reshape(-1).numpy()
     labels = np.array([token2num.get(val, val) for val in labels])
-    #print(f"labels is {labels}")
-    #print(f"labels shape is {labels.shape}")
-    prediction = logits.squeeze(0).transpose(0, 1).tolist()
-    print(f"labels shape is {labels.shape}")
-    #print(f"prediction shape is {prediction}, len {len(prediction)}")
+    # print(f"labels is {labels}")
+    # print(f"labels shape is {labels.shape}")
+    prediction = logits.tolist()
+    # print(f"prediction shape is {prediction}, len {len(prediction)}")
     return {"log_loss": log_loss(labels, prediction, labels=[0,1,2])}
 
 class SaveModelCallback(TrainerCallback):
@@ -466,7 +482,7 @@ def preprocess_logits_for_metrics(logits, labels):
     col_indices = (indices.unsqueeze(1) + torch.arange(2)).clamp(max=seq_len-1)
     
     logits = logits[row_indices, col_indices,:]
-    print(f"logits.shape is {logits.shape}")
+    # print(f"logits.shape is {logits.shape}")
     return logits
     
 def train(args):
@@ -491,7 +507,11 @@ def train(args):
     # df_train = load_json(df_train, args.all_in_one)
     # df_valid = load_json(df_valid, args.all_in_one)
     #df_train = df_train.loc[:500,:].reset_index(drop = True)
-    df_valid = df_valid.loc[:500,:].reset_index(drop = True)
+
+    if args.test_mode:
+        df_valid = df_valid.loc[:20,:].reset_index(drop = True)
+    else:
+        df_valid = df_valid.loc[:500,:].reset_index(drop = True)
     if args.split == False:
         df_valid = df_train.loc[:2,:].reset_index(drop = True)
 

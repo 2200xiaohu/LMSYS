@@ -340,6 +340,7 @@ class DataCollatorForInstruction:
         #print(f"label_pad_token_id is {self.label_pad_token_id}")
         # We have to pad the labels before calling `tokenizer.pad` as this method won't pad them and needs them of the
         # same length to return tensors.
+        print("before", feature['labels'])
         if labels is not None:
             max_label_length = max(len(l) for l in labels)
             if self.pad_to_multiple_of is not None:
@@ -350,6 +351,7 @@ class DataCollatorForInstruction:
                 )
 
             padding_side = self.tokenizer.padding_side
+            print(padding_side)
             for feature in features:
                 remainder = [self.label_pad_token_id] * (max_label_length - len(feature["labels"]))
                 if isinstance(feature["labels"], list):
@@ -361,6 +363,7 @@ class DataCollatorForInstruction:
                 else:
                     feature["labels"] = np.concatenate([remainder, feature["labels"]]).astype(np.int64)
         # breakpoint()
+        print(feature['labels'])
         features = self.tokenizer.pad(
             features,
             padding='longest',
