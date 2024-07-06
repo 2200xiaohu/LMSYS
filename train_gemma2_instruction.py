@@ -398,13 +398,14 @@ def compute_metrics(p):
     #print(f"logits shape is {logits.shape}")
     # print(f"logits is {logits}")
     labels = p.label_ids
+    print(label_ids)
     token2num = {A_TOKEN_IDS[0]:0, B_TOKEN_IDS[0]:1, C_TOKEN_IDS[0]:2}
     labels = labels[:,-2]
     labels = np.array([token2num.get(val, val) for val in labels])
     #print(f"labels is {labels}")
     #print(f"labels shape is {labels.shape}")
     prediction = logits.squeeze(0).transpose(0, 1).tolist()
-    #print(f"labels shape is {labels.shape}")
+    print(f"labels shape is {labels.shape}")
     #print(f"prediction shape is {prediction}, len {len(prediction)}")
     return {"log_loss": log_loss(labels, prediction, labels=[0,1,2])}
 
@@ -465,7 +466,7 @@ def preprocess_logits_for_metrics(logits, labels):
     col_indices = (indices.unsqueeze(1) + torch.arange(2)).clamp(max=seq_len-1)
     
     logits = logits[row_indices, col_indices,:]
-    #print(f"logits.shape is {logits.shape}")
+    print(f"logits.shape is {logits.shape}")
     return logits
     
 def train(args):
@@ -490,7 +491,7 @@ def train(args):
     # df_train = load_json(df_train, args.all_in_one)
     # df_valid = load_json(df_valid, args.all_in_one)
     #df_train = df_train.loc[:500,:].reset_index(drop = True)
-    #df_valid = df_valid.loc[:200,:].reset_index(drop = True)
+    df_valid = df_valid.loc[:500,:].reset_index(drop = True)
     if args.split == False:
         df_valid = df_train.loc[:2,:].reset_index(drop = True)
 
