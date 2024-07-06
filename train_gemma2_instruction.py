@@ -340,7 +340,6 @@ class DataCollatorForInstruction:
         #print(f"label_pad_token_id is {self.label_pad_token_id}")
         # We have to pad the labels before calling `tokenizer.pad` as this method won't pad them and needs them of the
         # same length to return tensors.
-        print("before", feature['labels'])
         if labels is not None:
             max_label_length = max(len(l) for l in labels)
             if self.pad_to_multiple_of is not None:
@@ -351,8 +350,9 @@ class DataCollatorForInstruction:
                 )
 
             padding_side = self.tokenizer.padding_side
-            print(padding_side)
+            # print(padding_side)
             for feature in features:
+                # print("before", feature['labels'])
                 remainder = [self.label_pad_token_id] * (max_label_length - len(feature["labels"]))
                 if isinstance(feature["labels"], list):
                     feature["labels"] = (
@@ -362,8 +362,9 @@ class DataCollatorForInstruction:
                     feature["labels"] = np.concatenate([feature["labels"], remainder]).astype(np.int64)
                 else:
                     feature["labels"] = np.concatenate([remainder, feature["labels"]]).astype(np.int64)
+                # print("after", feature['labels'])
+                # print("-" * 60)
         # breakpoint()
-        print(feature['labels'])
         features = self.tokenizer.pad(
             features,
             padding='longest',
@@ -510,8 +511,8 @@ def train(args):
 
     if args.test_mode:
         df_valid = df_valid.loc[:20,:].reset_index(drop = True)
-    else:
-        df_valid = df_valid.loc[:500,:].reset_index(drop = True)
+    # else:
+    #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
     if args.split == False:
         df_valid = df_train.loc[:2,:].reset_index(drop = True)
 
