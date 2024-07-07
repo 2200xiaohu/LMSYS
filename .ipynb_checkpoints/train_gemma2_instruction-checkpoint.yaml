@@ -6,6 +6,8 @@ all_in_one: True
 prompt_type: 2
 if_train: True
 split: False
+extranal_data: True
+if_concat : True
 per_device_train_batch_size: 1
 per_device_eval_batch_size: 1
 learning_rate: 5.e-5

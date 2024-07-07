@@ -513,9 +513,14 @@ def train(args):
         df_valid = df_valid.loc[:20,:].reset_index(drop = True)
     # else:
     #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
-    if args.split == False:
-        #用原本的validation
-        _ , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True)
+    if args.extranl_data == True:
+        if if_concat:
+            #需要拼接原有的数据起来
+            tmp_train , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True)
+            df_train = pc.concat([df_train, tmp_train]).reset_index(drop = True)
+        else:
+            _ , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True)
+        
 
     # df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
     # df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
