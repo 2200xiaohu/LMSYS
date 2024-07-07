@@ -514,12 +514,11 @@ def train(args):
     # else:
     #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
     if args.extranl_data == True:
+        #得到原有的验证集
+        tmp_train , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True)
         if if_concat:
             #需要拼接原有的数据起来
-            tmp_train , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True)
             df_train = pc.concat([df_train, tmp_train]).reset_index(drop = True)
-        else:
-            _ , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True)
         
 
     # df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
