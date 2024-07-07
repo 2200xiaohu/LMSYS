@@ -501,7 +501,10 @@ def train(args):
     MODEL = args.MODEL
     
     ### load data
-    df_train , df_valid = load_split_data(args.data_path, args.prompt_type, args.MAX_INPUT, args.if_train, args.split)
+    df_train = pd.DataFrame()
+    for p in args.data_path:
+        tmp_train , df_valid = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, args.split)
+        df_train = pd.concat([tmp_train,df_train]).reset_index(drop = True)
     #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
     #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
 
