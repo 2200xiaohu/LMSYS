@@ -473,15 +473,14 @@ def preprocess_logits_for_metrics(logits, labels):
     # print(labels.shape)
     # print(logits)
     # print(labels)
-    logits = logits.cpu()
-    labels = labels.cpu()
+    # logits = logits.cpu()
+    # labels = labels.cpu()
     bs, seq_len, vocab_size = logits.shape
     mask = labels != -100
     _, indices = torch.max(mask, dim=1)
-    
+    indices = indices - 1
     row_indices = torch.arange(bs).unsqueeze(1)
     col_indices = (indices.unsqueeze(1) + torch.arange(2)).clamp(max=seq_len-1)
-    
     logits = logits[row_indices, col_indices,:]
     # print(f"logits.shape is {logits.shape}")
     return logits
@@ -509,13 +508,17 @@ def train(args):
     # df_valid = load_json(df_valid, args.all_in_one)
     #df_train = df_train.loc[:500,:].reset_index(drop = True)
 
-    if args.test_mode:
-        df_valid = df_valid.loc[:20,:].reset_index(drop = True)
     # else:
     #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
-    if args.split == False:
-        #用原本的validation
-        _ , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True)
+    if args.extranal_data == True:
+        #得到原有的验证集
+        tmp_train , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True)
+        if args.if_concat:
+            #需要拼接原有的数据起来
+            df_train = pc.concat([df_train, tmp_train]).reset_index(drop = True)
+            df_train = df_train.sample(len(df_train)).reset_index(drop = True)
+    if args.test_mode:
+        df_valid = df_valid.loc[:20,:].reset_index(drop = True)
 
     # df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
     # df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
@@ -637,6 +640,7 @@ def train(args):
             eval_steps=args.eval_steps,
             save_strategy="steps",
             save_steps=args.save_steps,
+            save_only_model = True,
             load_best_model_at_end=False,
             metric_for_best_model='log_loss',
             lr_scheduler_type='cosine',
