@@ -479,8 +479,9 @@ def preprocess_logits_for_metrics(logits, labels):
     mask = labels != -100
     _, indices = torch.max(mask, dim=1)
     indices = indices - 1
-    row_indices = torch.arange(bs).unsqueeze(1)
-    col_indices = (indices.unsqueeze(1) + torch.arange(2)).clamp(max=seq_len-1)
+    row_indices = torch.arange(bs).unsqueeze(1).cuda()
+    last_two = torch.arange(2).cuda()
+    col_indices = (indices.unsqueeze(1) + last_two).clamp(max=seq_len-1).cuda()
     logits = logits[row_indices, col_indices,:]
     # print(f"logits.shape is {logits.shape}")
     return logits
