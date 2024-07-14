@@ -499,27 +499,34 @@ def train(args):
     wandb.save("train_gemma2_instruction.yaml")
     # HUGGING FACE MODEL
     MODEL = args.MODEL
+
+    if len(args.train_data) != 0:
+        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
+    if len(args.valid_data) != 0:   
+        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
+        
+    if len(args.data_path) !=0:    
+        ### load data
+        df_train = pd.DataFrame()
+        for p in args.data_path:
+            tmp_train , df_valid = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, args.split, args.split_by_prompt)
+            df_train = pd.concat([df_train,tmp_train]).reset_index(drop = True)
+        #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
+        #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
     
-    ### load data
-    df_train = pd.DataFrame()
-    for p in args.data_path:
-        tmp_train , df_valid = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, args.split, args.split_by_prompt)
-        df_train = pd.concat([df_train,tmp_train]).reset_index(drop = True)
-    #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
-    #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
-
-    # df_train = load_json(df_train, args.all_in_one)
-    # df_valid = load_json(df_valid, args.all_in_one)
-    #df_train = df_train.loc[:500,:].reset_index(drop = True)
-
-    # else:
-    #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
-    if args.extranal_data == True:
-        #得到原有的验证集
-        tmp_train , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True, args.split_by_prompt)
-        if args.if_concat:
-            #需要拼接原有的数据起来
-            df_train = pd.concat([df_train, tmp_train]).reset_index(drop = True)
+        # df_train = load_json(df_train, args.all_in_one)
+        # df_valid = load_json(df_valid, args.all_in_one)
+        #df_train = df_train.loc[:500,:].reset_index(drop = True)
+    
+        # else:
+        #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
+        if args.extranal_data == True:
+            #得到原有的验证集
+            tmp_train , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True, args.split_by_prompt)
+            if args.if_concat:
+                #需要拼接原有的数据起来
+                df_train = pd.concat([df_train, tmp_train]).reset_index(drop = True)
+                
     if args.test_mode:
         df_valid = df_valid.loc[:20,:].reset_index(drop = True)
         

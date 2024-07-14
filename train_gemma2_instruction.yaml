@@ -1,6 +1,6 @@
-data_path: ["dataset/train_sample10k_switch_split_by_prompt.json"]
-train_data: 'dataset/random_all_in_one_train.csv'
-valid_data: 'dataset/random_all_in_one_valid.csv'
+data_path: []
+train_data: 'dataset/non_overlap/train_33k.json'
+valid_data: 'dataset/non_overlap/valid.json'
 resume_from_checkpoint: ''
 all_in_one: True
 prompt_type: 2
