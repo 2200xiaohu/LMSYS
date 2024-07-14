@@ -501,16 +501,17 @@ def train(args):
     MODEL = args.MODEL
 
     if len(args.train_data) != 0:
+        #加载基本数据集
         df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
     if len(args.valid_data) != 0:   
         df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
         
     if len(args.data_path) !=0:    
         ### load data
-        df_train = pd.DataFrame()
+        ex_train = pd.DataFrame()
         for p in args.data_path:
-            tmp_train , df_valid = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, args.split, args.split_by_prompt)
-            df_train = pd.concat([df_train,tmp_train]).reset_index(drop = True)
+            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
+            ex_train = pd.concat([ex_train,tmp_train]).reset_index(drop = True)
         #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
         #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
     
@@ -525,8 +526,9 @@ def train(args):
             df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
             if args.if_concat:
                 #需要拼接原有的数据起来
-                tmp_train = load_split_data('dataset/non_overlap/train_exclude_valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
-                df_train = pd.concat([df_train, tmp_train]).reset_index(drop = True)
+                df_train = pd.concat([df_train, ex_train]).reset_index(drop = True)
+            else:
+                df_train = ex_train
                 
     if args.test_mode:
         df_valid = df_valid.loc[:20,:].reset_index(drop = True)
