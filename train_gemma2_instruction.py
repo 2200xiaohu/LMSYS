@@ -522,9 +522,10 @@ def train(args):
         #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
         if args.extranal_data == True:
             #得到原有的验证集
-            tmp_train , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True, args.split_by_prompt)
+            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
             if args.if_concat:
                 #需要拼接原有的数据起来
+                tmp_train = load_split_data('dataset/non_overlap/train_exclude_valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
                 df_train = pd.concat([df_train, tmp_train]).reset_index(drop = True)
                 
     if args.test_mode:
