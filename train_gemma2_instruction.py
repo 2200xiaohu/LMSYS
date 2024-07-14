@@ -503,8 +503,8 @@ def train(args):
     ### load data
     df_train = pd.DataFrame()
     for p in args.data_path:
-        tmp_train , df_valid = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, args.split)
-        df_train = pd.concat([tmp_train,df_train]).reset_index(drop = True)
+        tmp_train , df_valid = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, args.split, args.split_by_prompt)
+        df_train = pd.concat([df_train,tmp_train]).reset_index(drop = True)
     #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
     #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
 
@@ -516,14 +516,14 @@ def train(args):
     #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
     if args.extranal_data == True:
         #得到原有的验证集
-        tmp_train , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True)
+        tmp_train , df_valid = load_split_data('dataset/train.csv', args.prompt_type, args.MAX_INPUT, True, True, args.split_by_prompt)
         if args.if_concat:
             #需要拼接原有的数据起来
-            df_train = pc.concat([df_train, tmp_train]).reset_index(drop = True)
-            df_train = df_train.sample(len(df_train)).reset_index(drop = True)
+            df_train = pd.concat([df_train, tmp_train]).reset_index(drop = True)
     if args.test_mode:
         df_valid = df_valid.loc[:20,:].reset_index(drop = True)
-
+        
+    df_train = df_train.sample(len(df_train)).reset_index(drop = True)
     # df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
     # df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
     # df_train.loc[:, 'response_b'] = df_train['response_b'].apply(process)
@@ -672,7 +672,7 @@ def train(args):
             num_training_steps=training_args.num_train_epochs *
                 int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
                     training_args.gradient_accumulation_steps),
-            num_cycles = 3)#3
+            num_cycles = 0.5)#3
     trainer = CustomTrainer(
         model=model,
         args=training_args,
