@@ -9,7 +9,7 @@ split: False
 split_by_prompt: True
 extranal_data: True
 if_concat : True
-if_drop_dupcliates: True
+if_drop_duplicate: True
 per_device_train_batch_size: 1
 per_device_eval_batch_size: 1
 learning_rate: 6.e-5
@@ -19,8 +19,8 @@ warmup_steps: 30
 num_train_epochs: 2
 gradient_accumulation_steps: 16
 logging_steps: 10
-eval_steps: 10
-save_steps: 10
+eval_steps: 400
+save_steps: 200
 weight_decay: 1.e-5
 MAX_INPUT: 2000
 MODEL: 'meta-llama-chat'
