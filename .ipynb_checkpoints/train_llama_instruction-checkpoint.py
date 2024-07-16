@@ -240,6 +240,7 @@ from peft import (
     get_peft_model,
     LoraConfig,
     TaskType,
+    prepare_model_for_kbit_training
 )
 import os
 
@@ -312,7 +313,7 @@ class InstructionDataSet(Dataset):
         label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
         input_ids = templete_part1_input_ids + prompt_response_ids + templete_part2_input_ids + label_ids + [self.tokenizer.eos_token_id]
         labels = [-100] * (len(input_ids) - 2) + label_ids + [self.tokenizer.eos_token_id]
-        #print(f"input is {templete_part1 +prompt_response + templete_part2 + label}")
+        print(f"input is {tokenizer.decode(input_ids)}")
         return {
             "input_ids": input_ids,
             "labels": labels
@@ -332,6 +333,7 @@ class DataCollatorForInstruction:
         if return_tensors is None:
             return_tensors = self.return_tensors
         labels = [feature["labels"] for feature in features] if "labels" in features[0].keys() else None
+        #print(f"label_pad_token_id is {self.label_pad_token_id}")
         # We have to pad the labels before calling `tokenizer.pad` as this method won't pad them and needs them of the
         # same length to return tensors.
         if labels is not None:
@@ -344,7 +346,9 @@ class DataCollatorForInstruction:
                 )
 
             padding_side = self.tokenizer.padding_side
+            # print(padding_side)
             for feature in features:
+                # print("before", feature['labels'])
                 remainder = [self.label_pad_token_id] * (max_label_length - len(feature["labels"]))
                 if isinstance(feature["labels"], list):
                     feature["labels"] = (
@@ -354,15 +358,18 @@ class DataCollatorForInstruction:
                     feature["labels"] = np.concatenate([feature["labels"], remainder]).astype(np.int64)
                 else:
                     feature["labels"] = np.concatenate([remainder, feature["labels"]]).astype(np.int64)
+                # print("after", feature['labels'])
+                # print("-" * 60)
         # breakpoint()
         features = self.tokenizer.pad(
             features,
-            padding=True,
-            max_length=max_label_length,
+            padding='longest',
+            #max_length=max_label_length,
             pad_to_multiple_of=self.pad_to_multiple_of,
             return_tensors=return_tensors,
         )
-
+        #print(f"features is {features}")
+        #print(f"labels is {features['labels']}")
         # prepare decoder_input_ids
         if (
                 labels is not None
@@ -373,24 +380,47 @@ class DataCollatorForInstruction:
             features["decoder_input_ids"] = decoder_input_ids
         # breakpoint() # [(len(features[i]['input_ids']),len(features[i]['labels'])) for i in range(4)]
         #print(features['input_ids'])
-        if self.tokenizer.pad_token_id in features['input_ids']:#
-            print(f"use padding")
-            #idx = features['input_ids'].index(128256)
-            #print(f"padding on: {features['input_ids'][idx-30,: idx+30]}")
+        # if self.tokenizer.pad_token_id in features['input_ids']:#
+        #     print(f"use padding")
+        #     #idx = features['input_ids'].index(128256)
+        #     #print(f"padding on: {features['input_ids'][idx-30,: idx+30]}")
         return features
-    
+#[num, seq_length, vocab_size]    
+#generaate : [num, max_token, vocab_size]
 def compute_metrics(p):
     logits = p.predictions
-    predictions = np.argmax(logits, axis=-1)
-    
-    probabilities = np.exp(logits) / np.sum(np.exp(logits), axis=-1, keepdims=True)
-    #print(f"p is {p}")
-    #print(f"logits is {logits}")
-    labels = p.label_ids
-    #print(f"labels is {labels}")
+    #print(f"logits before shape is {logits.shape}")
+    #predictions = np.argmax(logits, axis=-1)
+    # A_prob, B_prob, C_prob = logits[:,0,A_TOKEN_IDS].squeeze(1), logits[:,0,B_TOKEN_IDS].squeeze(1), logits[:,0,C_TOKEN_IDS].squeeze(1)
+    # #print(f"A_prob {A_prob.shape}")
+    # logits = torch.Tensor([[A_prob,B_prob,C_prob]])
+    # logits = torch.softmax(logits, dim=-1)
+    logits = logits[:,0,[A_TOKEN_IDS,B_TOKEN_IDS,C_TOKEN_IDS]]
+    logits = torch.softmax(torch.tensor(logits).reshape(-1,3), dim=-1)
+    # print(f"logits shape is {logits.shape}")
+    # print(f"logits is {logits}")
+    labels = torch.tensor(p.label_ids)
     # print(f"labels is {labels}")
+    # print(f"labels shape is {labels.shape}")
+
+    # get first none -100
+    bs, seq_len = labels.shape
+    mask = labels != -100
+    _, indices = torch.max(mask, dim=1)
     
-    return {"log_loss": log_loss(labels, probabilities)}
+    row_indices = torch.arange(bs).unsqueeze(1)
+    col_indices = (indices.unsqueeze(1) + torch.arange(1)).clamp(max=seq_len-1)
+
+    labels = labels[row_indices, col_indices]
+    
+    token2num = {A_TOKEN_IDS[0]:0, B_TOKEN_IDS[0]:1, C_TOKEN_IDS[0]:2}
+    labels = labels.reshape(-1).numpy()
+    labels = np.array([token2num.get(val, val) for val in labels])
+    # print(f"labels is {labels}")
+    # print(f"labels shape is {labels.shape}")
+    prediction = logits.tolist()
+    # print(f"prediction shape is {prediction}, len {len(prediction)}")
+    return {"log_loss": log_loss(labels, prediction, labels=[0,1,2])}
 
 class SaveModelCallback(TrainerCallback):
     def save_model(self, args, state, kwargs):
@@ -433,6 +463,24 @@ class SaveModelCallback(TrainerCallback):
 #         data.loc[:, 'response_a'] = data['response_a'].apply(process)
 #         data.loc[:, 'response_b'] = data['response_b'].apply(process)
 #         return data
+
+def preprocess_logits_for_metrics(logits, labels):
+    # print(logits.shape)
+    # print(labels.shape)
+    # print(logits)
+    # print(labels)
+    # logits = logits.cpu()
+    # labels = labels.cpu()
+    bs, seq_len, vocab_size = logits.shape
+    mask = labels != -100
+    _, indices = torch.max(mask, dim=1)
+    indices = indices - 1
+    row_indices = torch.arange(bs).unsqueeze(1).cuda()
+    last_two = torch.arange(2).cuda()
+    col_indices = (indices.unsqueeze(1) + last_two).clamp(max=seq_len-1).cuda()
+    logits = logits[row_indices, col_indices,:]
+    # print(f"logits.shape is {logits.shape}")
+    return logits
     
 def train(args):
     # set the wandb project where this run will be logged
@@ -443,21 +491,50 @@ def train(args):
     s = strftime("%a_%d_%b_%H_%M", gmtime())
 
     wandb.init(project="LMSYS", config=args)
-    wandb.save("train_llama_instruction.py")
-    wandb.save("train_llama_instruction.yaml")
+    wandb.save("train_gemma2_instruction.py")
+    wandb.save("train_gemma2_instruction.yaml")
     # HUGGING FACE MODEL
     MODEL = args.MODEL
+
+    if len(args.train_data) != 0:
+        #加载基本数据集
+        print(f"loading base train data: {args.train_data}")
+        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
+    if len(args.valid_data) != 0: 
+        print(f"loading base valid data: {args.valid_data}")
+        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
+        
+    if len(args.data_path) !=0:    
+        ### load data
+        print(f"loading extrnal data")
+        ex_train = pd.DataFrame()
+        for p in args.data_path:
+            print(f"extrnal data {p}")
+            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
+            ex_train = pd.concat([ex_train,tmp_train]).reset_index(drop = True)
+        #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
+        #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
     
-    ### load data
-    df_train , df_valid = load_spilt_data(args.data_path, args.prompt_type, args.MAX_INPUT, args.if_train, args.split)
-    # df_train = pd.read_csv(args.train_data).reset_index(drop = True)
-    # df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
-
-    # df_train = load_json(df_train, args.all_in_one)
-    # df_valid = load_json(df_valid, args.all_in_one)
-    #df_train = df_train.loc[:500,:].reset_index(drop = True)
-    df_valid = df_valid.loc[:2,:].reset_index(drop = True)
-
+        # df_train = load_json(df_train, args.all_in_one)
+        # df_valid = load_json(df_valid, args.all_in_one)
+        #df_train = df_train.loc[:500,:].reset_index(drop = True)
+    
+        # else:
+        #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
+        if args.extranal_data == True:
+            #得到原有的验证集
+            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
+            if args.if_concat:
+                print(f"concat extrnal data and base train data")
+                df_train = pd.concat([df_train, ex_train]).reset_index(drop = True)
+            else:
+                print(f"only use extrnal data")
+                df_train = ex_train
+                
+    if args.test_mode:
+        df_valid = df_valid.loc[:20,:].reset_index(drop = True)
+        
+    df_train = df_train.sample(len(df_train)).reset_index(drop = True)
     # df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
     # df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
     # df_train.loc[:, 'response_b'] = df_train['response_b'].apply(process)
@@ -469,7 +546,7 @@ def train(args):
     ### process dataset 
     config = AutoConfig.from_pretrained(MODEL, trust_remote_code=True)
     tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, truncation_side = 'left')
-    tokenizer.add_special_tokens({"pad_token":"<pad>"})
+    #tokenizer.add_special_tokens({"pad_token":"<pad>"})
     
     print(f"arg is {args}")
     
@@ -493,7 +570,14 @@ def train(args):
         tokenized_dataset_valid = InstructionDataSet(df_valid,tokenizer, args.MAX_INPUT, 1, args.all_in_one)
         torch.save(tokenized_dataset_valid, valid_cache_path)   
 
-    
+    global A_TOKEN_IDS
+    A_TOKEN_IDS = tokenizer('A',add_special_tokens=True, truncation=True, max_length=1024)['input_ids']
+    print(f"A_TOKEN_IDS is {A_TOKEN_IDS}")
+    global B_TOKEN_IDS 
+    B_TOKEN_IDS = tokenizer('B',add_special_tokens=True, truncation=True, max_length=1024)['input_ids']
+    global C_TOKEN_IDS 
+    C_TOKEN_IDS = tokenizer('C',add_special_tokens=True, truncation=True, max_length=1024)['input_ids']
+
     
     # bnb_config = BitsAndBytesConfig(
     #     load_in_8bit=True,  # 使用8bit量化
@@ -514,23 +598,35 @@ def train(args):
                                                  quantization_config=bnb_config,
                                                  torch_dtype=torch.bfloat16,
                                                  device_map="auto",
-                                                 trust_remote_code=True)
+                                                 trust_remote_code=True,
+                                                 )
+
     model.config.pad_token_id = tokenizer.pad_token_id
     model.resize_token_embeddings(len(tokenizer))
-    
+    #model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     # config = AutoConfig.from_pretrained(MODEL)
     # config.hidden_dropout_prob = args.dropout_rate
     # config.attention_probs_dropout_prob = args.dropout_rate
-    peft_config = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,  # For sequence classification
-        inference_mode=False,
-        r=args.lora_r,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-        #bias = 'none',
-        target_modules=['q_proj','k_proj','v_proj'] #,'o_proj'
-    )
-    model = get_peft_model(model, peft_config)
+
+    
+    checkpoint = None
+    if len(args.resume_from_checkpoint) != 0:
+        checkpoint = args.resume_from_checkpoint
+        print(f"Using checkpoint: {checkpoint}")
+        model = PeftModel.from_pretrained(model, checkpoint, is_trainable=True)
+        print(model)
+        
+    else:
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,  # For sequence classification
+            inference_mode=False,
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            #bias = 'none',
+            target_modules=['q_proj','k_proj','v_proj'] #,'o_proj'
+        )
+        model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
     # for key in model.state_dict():
     #     print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")
@@ -547,7 +643,7 @@ def train(args):
             warmup_steps=args.warmup_steps,
             learning_rate=args.learning_rate,
             per_device_train_batch_size=args.per_device_train_batch_size,
-            #per_device_eval_batch_size=args.per_device_eval_batch_size,
+            per_device_eval_batch_size=args.per_device_eval_batch_size,
             num_train_epochs=args.num_train_epochs,
             output_dir=f"output/{wandb.run.name}",
             report_to="wandb",
@@ -556,18 +652,19 @@ def train(args):
             fp16=False,
             gradient_accumulation_steps=args.gradient_accumulation_steps,
             logging_steps=args.logging_steps,
-            #evaluation_strategy='steps',
-            #eval_steps=args.eval_steps,
+            evaluation_strategy='steps',
+            eval_steps=args.eval_steps,
             save_strategy="steps",
             save_steps=args.save_steps,
+            save_only_model = True,
             load_best_model_at_end=False,
             metric_for_best_model='log_loss',
             lr_scheduler_type='cosine',
             weight_decay=args.weight_decay,
-            save_total_limit=5,
+            save_total_limit=30,
             label_smoothing_factor=args.label_smoothing_factor,
-            do_eval=False,
-            evaluation_strategy="no"
+            # do_eval=False,
+            # evaluation_strategy="no"
         )
     
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_args.learning_rate)
@@ -587,7 +684,7 @@ def train(args):
             num_training_steps=training_args.num_train_epochs *
                 int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
                     training_args.gradient_accumulation_steps),
-            num_cycles = 3)
+            num_cycles = 0.5)#3
     trainer = CustomTrainer(
         model=model,
         args=training_args,
@@ -599,9 +696,13 @@ def train(args):
         optimizers=(optimizer, scheduler),
         awp_lr = args.awp_lr,
         awp_eps = args.awp_eps,
-        awp_start_epoch = args.awp_start_epoch
+        awp_start_epoch = args.awp_start_epoch,
+        preprocess_logits_for_metrics = preprocess_logits_for_metrics
     )
-    
+
+
+    #model.gradient_checkpointing_enable()
+    #model.enable_input_require_grads()
     trainer.train()
     #trainer.add_callback(SaveModelCallback)
     # trainer.save_model(args.output_dir)

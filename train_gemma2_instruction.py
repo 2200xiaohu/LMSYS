@@ -502,14 +502,18 @@ def train(args):
 
     if len(args.train_data) != 0:
         #加载基本数据集
+        print(f"loading base train data: {args.train_data}")
         df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
-    if len(args.valid_data) != 0:   
+    if len(args.valid_data) != 0: 
+        print(f"loading base valid data: {args.valid_data}")
         df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
         
     if len(args.data_path) !=0:    
         ### load data
+        print(f"loading extrnal data")
         ex_train = pd.DataFrame()
         for p in args.data_path:
+            print(f"extrnal data {p}")
             tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
             ex_train = pd.concat([ex_train,tmp_train]).reset_index(drop = True)
         #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
@@ -525,9 +529,10 @@ def train(args):
             #得到原有的验证集
             df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
             if args.if_concat:
-                #需要拼接原有的数据起来
+                print(f"concat extrnal data and base train data")
                 df_train = pd.concat([df_train, ex_train]).reset_index(drop = True)
             else:
+                print(f"only use extrnal data")
                 df_train = ex_train
                 
     if args.test_mode:
@@ -584,17 +589,17 @@ def train(args):
     #     bnb_8bit_use_double_quant=False
     # )
 
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,  
-        bnb_4bit_quant_type='nf4',
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=True
-    )
+    # bnb_config = BitsAndBytesConfig(
+    #     load_in_4bit=True,  
+    #     bnb_4bit_quant_type='nf4',
+    #     bnb_4bit_compute_dtype=torch.float16,
+    #     bnb_4bit_use_double_quant=True
+    # )
     
     model = AutoModelForCausalLM.from_pretrained(MODEL,
                                                  config=config,
-                                                 quantization_config=bnb_config,
-                                                 torch_dtype=torch.bfloat16,
+                                                 #quantization_config=bnb_config,
+                                                 torch_dtype=torch.float16,
                                                  device_map="auto",
                                                  trust_remote_code=True,
                                                  attn_implementation='eager')
@@ -659,7 +664,7 @@ def train(args):
             metric_for_best_model='log_loss',
             lr_scheduler_type='cosine',
             weight_decay=args.weight_decay,
-            save_total_limit=15,
+            save_total_limit=30,
             label_smoothing_factor=args.label_smoothing_factor,
             # do_eval=False,
             # evaluation_strategy="no"
