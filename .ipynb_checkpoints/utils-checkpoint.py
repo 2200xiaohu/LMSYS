@@ -116,7 +116,7 @@ def make_prompt(data, if_train, prompt_type, max_length):
     elif prompt_type == 2:
         data = prompt_2(data, max_length * 0.75, if_train)
     return data
-def load_split_data(data_path, prompt_type, max_length, if_train, split, split_by_prompt):
+def load_split_data(data_path, prompt_type, max_length, if_train, split, split_by_prompt, if_drop_dupcliates):
     """
     prompt_type: [1, 2, 3]
     if_train: True or False
@@ -151,12 +151,17 @@ def load_split_data(data_path, prompt_type, max_length, if_train, split, split_b
             
             valid = data.loc[data.id.isin(valid_idx),].reset_index(drop = True)
             train = data.loc[~data.id.isin(valid_idx),].reset_index(drop = True)
-
+            
         train = make_prompt(train, if_train, prompt_type, max_length)
         valid = make_prompt(valid, if_train, prompt_type, max_length)
+        if if_drop_dupcliates:
+            train = train.drop_duplicates(subset = ['id'], keep ='first').reset_index(drop = True)
+            valid = train.drop_duplicates(subset = ['id'], keep ='first').reset_index(drop = True)
         return train, valid
         
     data = make_prompt(data, if_train, prompt_type, max_length)
+    if if_drop_dupcliates:
+            data = data.drop_duplicates(subset = ['id'], keep ='first').reset_index(drop = True)
     return data, None
 
     

@@ -313,7 +313,7 @@ class InstructionDataSet(Dataset):
         label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
         input_ids = templete_part1_input_ids + prompt_response_ids + templete_part2_input_ids + label_ids + [self.tokenizer.eos_token_id]
         labels = [-100] * (len(input_ids) - 2) + label_ids + [self.tokenizer.eos_token_id]
-        print(f"input is {tokenizer.decode(input_ids)}")
+        #print(f"input is {self.tokenizer.decode(input_ids)}")
         return {
             "input_ids": input_ids,
             "labels": labels
@@ -499,10 +499,10 @@ def train(args):
     if len(args.train_data) != 0:
         #加载基本数据集
         print(f"loading base train data: {args.train_data}")
-        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
+        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_dupcliates)
     if len(args.valid_data) != 0: 
         print(f"loading base valid data: {args.valid_data}")
-        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
+        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_dupcliates)
         
     if len(args.data_path) !=0:    
         ### load data
@@ -510,7 +510,7 @@ def train(args):
         ex_train = pd.DataFrame()
         for p in args.data_path:
             print(f"extrnal data {p}")
-            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
+            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_dupcliates)
             ex_train = pd.concat([ex_train,tmp_train]).reset_index(drop = True)
         #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
         #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
@@ -523,7 +523,7 @@ def train(args):
         #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
         if args.extranal_data == True:
             #得到原有的验证集
-            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False)
+            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_dupcliates)
             if args.if_concat:
                 print(f"concat extrnal data and base train data")
                 df_train = pd.concat([df_train, ex_train]).reset_index(drop = True)
@@ -546,7 +546,7 @@ def train(args):
     ### process dataset 
     config = AutoConfig.from_pretrained(MODEL, trust_remote_code=True)
     tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, truncation_side = 'left')
-    #tokenizer.add_special_tokens({"pad_token":"<pad>"})
+    tokenizer.add_special_tokens({"pad_token":"<pad>"})
     
     print(f"arg is {args}")
     
