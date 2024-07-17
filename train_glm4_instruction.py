@@ -470,10 +470,15 @@ class SaveModelCallback(TrainerCallback):
 def preprocess_logits_for_metrics(logits, labels):
     # print(logits.shape)
     # print(labels.shape)
-    # print(logits)
-    # print(labels)
+    # print(f"len(logits) is : {len(logits)}")
+    # print(f"logits[0] is {logits[0].shape}")
+    # print(f"logits[1] is {len(logits[1])}")
+    # print(f"logits[1][0] is {logits[1][39]}")
+    # print(f"logits[1][0] is {logits[1][0][0].shape}")
+    #print(labels)
     # logits = logits.cpu()
     # labels = labels.cpu()
+    logits = logits[0]
     bs, seq_len, vocab_size = logits.shape
     mask = labels != -100
     _, indices = torch.max(mask, dim=1)
@@ -588,17 +593,17 @@ def train(args):
     #     bnb_8bit_use_double_quant=False
     # )
 
-    # bnb_config = BitsAndBytesConfig(
-    #     load_in_4bit=True,  
-    #     bnb_4bit_quant_type='nf4',
-    #     bnb_4bit_compute_dtype=torch.float16,
-    #     bnb_4bit_use_double_quant=True
-    # )
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,  
+        bnb_4bit_quant_type='nf4',
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_use_double_quant=True
+    )
     
     model = AutoModelForCausalLM.from_pretrained(MODEL,
                                                  config=config,
-                                                 #quantization_config=bnb_config,
-                                                 torch_dtype=torch.float16,
+                                                 quantization_config=bnb_config,
+                                                 torch_dtype=torch.bfloat16,
                                                  device_map="auto",
                                                  trust_remote_code=True,
                                                  attn_implementation='eager')
@@ -626,7 +631,7 @@ def train(args):
             lora_alpha=args.lora_alpha,
             lora_dropout=args.lora_dropout,
             #bias = 'none',
-            target_modules=['query_key_value'] #,'o_proj'
+            target_modules=['query_key_value','dense'] #,'o_proj'
         )
         model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
