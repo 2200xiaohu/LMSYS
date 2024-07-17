@@ -10,3 +10,4 @@ microsoft
 Qwen
 meta-llama-chat
 .ipynb_checkpoints/
+__pycache__/

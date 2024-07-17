@@ -288,21 +288,19 @@ class InstructionDataSet(Dataset):
     def __getitem__(self, index):
         now_data = self.data.loc[index]
         
-        templete_part1 = "<start_of_turn>user\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
+        templete_part1 = "<|user|>\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
         templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
-        
-        templete_part2 = "\n###options\nA. Model A\nB. Model B\nC. Tie\n<end_of_turn>\n"
-        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids'][1:]
+
+        templete_part2 = "\n###options\nA. Model A\nB. Model B\nC. Tie\n<|assistant|>\n"
+        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=False, padding=False)['input_ids']
         #print(f"templete_part2 is {templete_part2_input_ids}")
-        templete_part3 = "<start_of_turn>model\n"
-        templete_part3_input_ids = self.tokenizer(text=templete_part3, add_special_tokens=True, padding=False)['input_ids'][1:]
         
         if self.all_in_one:
             prompt_response = now_data['prompt_response']
             #print(f"id is {now_data['id']}")
             #print(prompt_response)
-            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
-                                              max_length=self.max_source_length, padding=False)['input_ids'][1:]
+            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=False, truncation=True,
+                                              max_length=self.max_source_length, padding=False)['input_ids']
             #print(prompt_response_ids)        
         else:
             r_a = now_data['instruction_a']
@@ -315,8 +313,9 @@ class InstructionDataSet(Dataset):
             
         label = now_data['label']
         label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
-        input_ids = templete_part1_input_ids + prompt_response_ids + templete_part2_input_ids + templete_part3_input_ids + label_ids + [self.tokenizer.eos_token_id]
+        input_ids = templete_part1_input_ids + prompt_response_ids + templete_part2_input_ids + label_ids + [self.tokenizer.eos_token_id]
         labels = [-100] * (len(input_ids) - 2) + label_ids + [self.tokenizer.eos_token_id]
+        assert len(input_ids) == len(labels)
         #print(f"input is {self.tokenizer.decode(input_ids)}")
         return {
             "input_ids": input_ids,
@@ -503,10 +502,10 @@ def train(args):
     if len(args.train_data) != 0:
         #加载基本数据集
         print(f"loading base train data: {args.train_data}")
-        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
     if len(args.valid_data) != 0: 
         print(f"loading base valid data: {args.valid_data}")
-        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
         
     if len(args.data_path) !=0:    
         ### load data
@@ -514,7 +513,7 @@ def train(args):
         ex_train = pd.DataFrame()
         for p in args.data_path:
             print(f"extrnal data {p}")
-            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
             ex_train = pd.concat([ex_train,tmp_train]).reset_index(drop = True)
         #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
         #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
@@ -527,7 +526,7 @@ def train(args):
         #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
         if args.extranal_data == True:
             #得到原有的验证集
-            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
             if args.if_concat:
                 print(f"concat extrnal data and base train data")
                 df_train = pd.concat([df_train, ex_train]).reset_index(drop = True)
@@ -575,11 +574,11 @@ def train(args):
         torch.save(tokenized_dataset_valid, valid_cache_path)   
 
     global A_TOKEN_IDS
-    A_TOKEN_IDS = tokenizer('A',add_special_tokens=True, truncation=True, max_length=1024)['input_ids'][1:]
+    A_TOKEN_IDS = tokenizer('A',add_special_tokens=False, truncation=True, max_length=1024)['input_ids']
     global B_TOKEN_IDS 
-    B_TOKEN_IDS = tokenizer('B',add_special_tokens=True, truncation=True, max_length=1024)['input_ids'][1:]
+    B_TOKEN_IDS = tokenizer('B',add_special_tokens=False, truncation=True, max_length=1024)['input_ids']
     global C_TOKEN_IDS 
-    C_TOKEN_IDS = tokenizer('C',add_special_tokens=True, truncation=True, max_length=1024)['input_ids'][1:]
+    C_TOKEN_IDS = tokenizer('C',add_special_tokens=False, truncation=True, max_length=1024)['input_ids']
 
     
     # bnb_config = BitsAndBytesConfig(
@@ -627,7 +626,7 @@ def train(args):
             lora_alpha=args.lora_alpha,
             lora_dropout=args.lora_dropout,
             #bias = 'none',
-            target_modules=['q_proj','k_proj','v_proj'] #,'o_proj'
+            target_modules=['query_key_value'] #,'o_proj'
         )
         model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
@@ -747,7 +746,7 @@ if __name__ == "__main__":
     # args = parser.parse_args()
 
     parser = argparse.ArgumentParser(description='Demo of argparse')
-    parser.add_argument('--config', default='train_gemma2_instruction.yaml', type=str, help='Path to the config file', required=False)
+    parser.add_argument('--config', default='train_glm4_instruction.yaml', type=str, help='Path to the config file', required=False)
     args = parser.parse_args()
 
     config = load_config(args.config)
