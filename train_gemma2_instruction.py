@@ -687,7 +687,7 @@ def train(args):
             num_training_steps=training_args.num_train_epochs *
                 int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
                     training_args.gradient_accumulation_steps),
-            num_cycles = 0.5)#3
+            num_cycles = 1)#3
     trainer = CustomTrainer(
         model=model,
         args=training_args,
