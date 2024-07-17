@@ -503,10 +503,10 @@ def train(args):
     if len(args.train_data) != 0:
         #加载基本数据集
         print(f"loading base train data: {args.train_data}")
-        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
     if len(args.valid_data) != 0: 
         print(f"loading base valid data: {args.valid_data}")
-        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
         
     if len(args.data_path) !=0:    
         ### load data
@@ -514,7 +514,7 @@ def train(args):
         ex_train = pd.DataFrame()
         for p in args.data_path:
             print(f"extrnal data {p}")
-            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
             ex_train = pd.concat([ex_train,tmp_train]).reset_index(drop = True)
         #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
         #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
@@ -527,7 +527,7 @@ def train(args):
         #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
         if args.extranal_data == True:
             #得到原有的验证集
-            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
             if args.if_concat:
                 print(f"concat extrnal data and base train data")
                 df_train = pd.concat([df_train, ex_train]).reset_index(drop = True)
@@ -589,17 +589,17 @@ def train(args):
     #     bnb_8bit_use_double_quant=False
     # )
 
-    # bnb_config = BitsAndBytesConfig(
-    #     load_in_4bit=True,  
-    #     bnb_4bit_quant_type='nf4',
-    #     bnb_4bit_compute_dtype=torch.float16,
-    #     bnb_4bit_use_double_quant=True
-    # )
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,  
+        bnb_4bit_quant_type='nf4',
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_use_double_quant=True
+    )
     
     model = AutoModelForCausalLM.from_pretrained(MODEL,
                                                  config=config,
-                                                 #quantization_config=bnb_config,
-                                                 torch_dtype=torch.float16,
+                                                 quantization_config=bnb_config,
+                                                 torch_dtype=torch.bfloat16,
                                                  device_map="auto",
                                                  trust_remote_code=True,
                                                  attn_implementation='eager')
@@ -627,7 +627,7 @@ def train(args):
             lora_alpha=args.lora_alpha,
             lora_dropout=args.lora_dropout,
             #bias = 'none',
-            target_modules=['q_proj','k_proj','v_proj'] #,'o_proj'
+            target_modules=['q_proj','k_proj','v_proj','o_proj'] #,
         )
         model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
@@ -681,13 +681,14 @@ def train(args):
     #     power=1.0,
     #     lr_end=args.lr_end
     # )
+    num_warmup_steps = int(args.warmup_ratio * training_args.num_train_epochs * int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /training_args.gradient_accumulation_steps))
     scheduler = get_cosine_schedule_with_warmup(
             optimizer,
-            num_warmup_steps=training_args.warmup_steps,
+            num_warmup_steps= num_warmup_steps ,
             num_training_steps=training_args.num_train_epochs *
                 int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
                     training_args.gradient_accumulation_steps),
-            num_cycles = 0.5)#3
+            num_cycles = 1)#3
     trainer = CustomTrainer(
         model=model,
         args=training_args,

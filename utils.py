@@ -99,6 +99,65 @@ def prompt_2(data, max_length, if_train):
         data = pd.DataFrame({'id': ids, 'prompt_response': prompt_response})
     return data
 
+def prompt_3(data, max_length, if_train):
+    '''
+    超过max length新开一行，label不变
+    从后往前拼接
+    #Prompt1
+    xxxx
+    #Response
+    ##Model A
+    xxxx
+    ##Model B
+    xxxx
+    
+    #Prompt2
+    #Response
+    ##Model A
+    xxxx
+    ##Model B
+    xxxx
+    '''
+
+    data['prompt_response'] = "#Prompt\n" + data['prompt'] + "\n\n" + "#Response\n" + "##Model A\n" + data['response_a'] + "\n\n" + "##Model B\n" + data['response_b']
+    data = data.iloc[::-1].reset_index(drop = True)#反转
+    prompt_response = []
+    ids = []
+    labels = []
+    text_length = 0
+    for idx, row in tqdm(data.iterrows(), total=len(data)):
+        text = row['prompt_response']
+        if if_train:
+            label = row['label']
+        id = row['id']
+        if id not in ids:
+            #第一次出现
+            prompt_response.append(text)
+            text_length = len(text.split(" "))
+            ids.append(id)
+            if if_train:
+                labels.append(label)
+        else:
+            text_length += len(text.split(" "))
+            if text_length <= max_length:
+                #取上一个text出来，合并后替换
+                text = text + "\n\n" + prompt_response[-1]
+                prompt_response[-1] = text
+            else:
+                #另一起一行
+                prompt_response.append(text)
+                text_length = len(text.split(" "))
+                ids.append(id)
+                if if_train:
+                    labels.append(label)
+    if if_train:           
+        data = pd.DataFrame({'id': ids, 'prompt_response': prompt_response, "label": labels})
+        data = data.iloc[::-1].reset_index(drop = True)#反转
+    else:
+        data = pd.DataFrame({'id': ids, 'prompt_response': prompt_response})
+        data = data.iloc[::-1].reset_index(drop = True)#反转
+    return data
+
 def make_prompt(data, if_train, prompt_type, max_length):
     #seperate prompt-response
     data = data.explode(['prompt','response_a','response_b']).reset_index(drop = True)
@@ -115,8 +174,10 @@ def make_prompt(data, if_train, prompt_type, max_length):
         data = prompt_1(data)
     elif prompt_type == 2:
         data = prompt_2(data, max_length * 0.75, if_train)
+    elif prompt_type == 3:
+        data = prompt_3(data, max_length * 0.75, if_train)
     return data
-def load_split_data(data_path, prompt_type, max_length, if_train, split, split_by_prompt, if_drop_duplicate):
+def load_split_data(data_path, prompt_type, max_length, if_train, split, split_by_prompt, if_drop_duplicate, keep):
     """
     prompt_type: [1, 2, 3]
     if_train: True or False
@@ -155,13 +216,13 @@ def load_split_data(data_path, prompt_type, max_length, if_train, split, split_b
         train = make_prompt(train, if_train, prompt_type, max_length)
         valid = make_prompt(valid, if_train, prompt_type, max_length)
         if if_drop_duplicate:
-            train = train.drop_duplicates(subset = ['id'], keep ='first').reset_index(drop = True)
-            valid = train.drop_duplicates(subset = ['id'], keep ='first').reset_index(drop = True)
+            train = train.drop_duplicates(subset = ['id'], keep =keep).reset_index(drop = True)
+            valid = train.drop_duplicates(subset = ['id'], keep =keep).reset_index(drop = True)
         return train, valid
         
     data = make_prompt(data, if_train, prompt_type, max_length)
     if if_drop_duplicate:
-            data = data.drop_duplicates(subset = ['id'], keep ='first').reset_index(drop = True)
+            data = data.drop_duplicates(subset = ['id'], keep =keep).reset_index(drop = True)
     return data, None
 
     

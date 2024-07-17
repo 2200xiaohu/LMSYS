@@ -88,27 +88,55 @@ class CustomTrainer(Trainer):
         self.awp_eps = awp_eps
         self.awp_start_epoch = awp_start_epoch
         
-    # def compute_loss(self, model, inputs, return_outputs=False):
-    #     labels = inputs.get("labels")
-    #     inputs.pop("labels")  # Remove labels from inputs as model doesn't expect it
-    #     #print(f"inputs is {inputs.input_ids.shape}")
-    #     #print(f"labels is {labels}")
-    #     outputs = model(**inputs)
-    #     logits = outputs.get("logits")
+    def compute_loss(self, model, inputs, return_outputs=False):
+        labels = inputs.get("labels")
+        inputs.pop("labels")  # Remove labels from inputs as model doesn't expect it
+        #print(f"inputs is {inputs.input_ids.shape}")
+        #print(f"labels is {labels}")
+        outputs = model(**inputs)
+        logits = outputs.get("logits")
+        
+        bs, seq_len, vocab_size = logits.shape
+        mask = labels != -100
+        _, indices = torch.max(mask, dim=1)
+        indices = indices - 1
+        row_indices = torch.arange(bs).unsqueeze(1).cuda()
+        last_two = torch.arange(2).cuda()
+        col_indices = (indices.unsqueeze(1) + last_two).clamp(max=seq_len-1).cuda()
+        logits = logits[row_indices, col_indices,:]
+        label_logits = logits[:,0,[A_TOKEN_IDS,B_TOKEN_IDS,C_TOKEN_IDS]]
+        #label_logits = torch.softmax(torch.tensor(label_logits).reshape(-1,3), dim=-1)
 
-    #     #print(f"Logits shape: {logits.shape}, Labels shape: {labels.shape}")
-    #     #print(f"Logits {logits}, Labels: {labels}")
+        eos_logits = logits[:,-1,:]
+        #print(f"Logits shape: {logits.shape}, Labels shape: {labels.shape}")
+        #print(f"Logits {logits}, Labels: {labels}")
 
-    #     # Use CrossEntropyLoss for classification
-    #     vocab_size = logits.shape[-1]
-    #     loss_fct = nn.CrossEntropyLoss()
-    #     logits = logits[:,:-1,:]
-    #     labels = labels[:,1:]
-    #     print(f"Logits shape: {logits.shape}, Labels shape: {labels.shape}")
-    #     loss = loss_fct(logits.view(-1, vocab_size), labels.view(-1))
-    #     if loss < 0.1:
-    #         print(f"Logits {logits}, Labels: {labels}")
-    #     return (loss, outputs) if return_outputs else loss
+        bs, seq_len = labels.shape
+        mask = labels != -100
+        _, indices = torch.max(mask, dim=1)
+        
+        row_indices = torch.arange(bs).unsqueeze(1)
+        col_indices = (indices.unsqueeze(1) + torch.arange(2).cuda()).clamp(max=seq_len-1).cuda()
+    
+        labels = labels[row_indices, col_indices]
+        
+        token2num = {A_TOKEN_IDS[0]:0, B_TOKEN_IDS[0]:1, C_TOKEN_IDS[0]:2}
+        label_label = torch.tensor([token2num[labels[:,0].item()]]).cuda()
+        eos_label = labels[:,1]
+
+        
+        # Use CrossEntropyLoss for classification
+        loss_fct = nn.CrossEntropyLoss()
+        #print(f"Logits shape: {logits.shape}, Labels shape: {labels.shape}")
+        label_loss = loss_fct(label_logits.view(-1, 3), label_label.view(-1))
+        eos_loss = loss_fct(eos_logits.view(-1, vocab_size), eos_label.view(-1))
+        loss = (label_loss + eos_loss) / 2
+        # print(f"label_loss is {label_loss}, label is {label_label}, presiction is {label_logits}")
+        # print(f"eos_loss is {eos_loss}, eos label is {eos_label}, presiction is {eos_logits}")
+        # print(f"loss is {loss}")
+        # if loss < 0.1:
+        #     print(f"Logits {logits}, Labels: {labels}")
+        return (loss, outputs) if return_outputs else loss
 
     def save_model(self, output_dir=None, _internal_call=False):
         output_dir = output_dir if output_dir is not None else self.args.output_dir
@@ -288,22 +316,18 @@ class InstructionDataSet(Dataset):
     def __getitem__(self, index):
         now_data = self.data.loc[index]
         
-        templete_part1 = "<start_of_turn>user\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
+        templete_part1 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
         templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
-        
-        templete_part2 = "\n###options\nA. Model A\nB. Model B\nC. Tie\n<end_of_turn>\n"
-        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids'][1:]
-        #print(f"templete_part2 is {templete_part2_input_ids}")
-        templete_part3 = "<start_of_turn>model\n"
-        templete_part3_input_ids = self.tokenizer(text=templete_part3, add_special_tokens=True, padding=False)['input_ids'][1:]
+
+        templete_part2 = "\n###options\nA. Model A\nB. Model B\nC. Tie\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>"
+        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids']
         
         if self.all_in_one:
             prompt_response = now_data['prompt_response']
             #print(f"id is {now_data['id']}")
             #print(prompt_response)
             prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
-                                              max_length=self.max_source_length, padding=False)['input_ids'][1:]
-            #print(prompt_response_ids)        
+                                              max_length=self.max_source_length, padding=False)['input_ids']
         else:
             r_a = now_data['instruction_a']
             r_b = now_data['instruction_b']
@@ -315,7 +339,7 @@ class InstructionDataSet(Dataset):
             
         label = now_data['label']
         label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
-        input_ids = templete_part1_input_ids + prompt_response_ids + templete_part2_input_ids + templete_part3_input_ids + label_ids + [self.tokenizer.eos_token_id]
+        input_ids = templete_part1_input_ids + prompt_response_ids + templete_part2_input_ids + label_ids + [self.tokenizer.eos_token_id]
         labels = [-100] * (len(input_ids) - 2) + label_ids + [self.tokenizer.eos_token_id]
         #print(f"input is {self.tokenizer.decode(input_ids)}")
         return {
@@ -550,7 +574,7 @@ def train(args):
     ### process dataset 
     config = AutoConfig.from_pretrained(MODEL, trust_remote_code=True)
     tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, truncation_side = 'left')
-    #tokenizer.add_special_tokens({"pad_token":"<pad>"})
+    tokenizer.add_special_tokens({"pad_token":"<pad>"})
     
     print(f"arg is {args}")
     
@@ -575,11 +599,12 @@ def train(args):
         torch.save(tokenized_dataset_valid, valid_cache_path)   
 
     global A_TOKEN_IDS
-    A_TOKEN_IDS = tokenizer('A',add_special_tokens=True, truncation=True, max_length=1024)['input_ids'][1:]
+    A_TOKEN_IDS = tokenizer('A',add_special_tokens=True, truncation=True, max_length=1024)['input_ids']
+    print(f"A_TOKEN_IDS is {A_TOKEN_IDS}")
     global B_TOKEN_IDS 
-    B_TOKEN_IDS = tokenizer('B',add_special_tokens=True, truncation=True, max_length=1024)['input_ids'][1:]
+    B_TOKEN_IDS = tokenizer('B',add_special_tokens=True, truncation=True, max_length=1024)['input_ids']
     global C_TOKEN_IDS 
-    C_TOKEN_IDS = tokenizer('C',add_special_tokens=True, truncation=True, max_length=1024)['input_ids'][1:]
+    C_TOKEN_IDS = tokenizer('C',add_special_tokens=True, truncation=True, max_length=1024)['input_ids']
 
     
     # bnb_config = BitsAndBytesConfig(
@@ -589,23 +614,23 @@ def train(args):
     #     bnb_8bit_use_double_quant=False
     # )
 
-    # bnb_config = BitsAndBytesConfig(
-    #     load_in_4bit=True,  
-    #     bnb_4bit_quant_type='nf4',
-    #     bnb_4bit_compute_dtype=torch.float16,
-    #     bnb_4bit_use_double_quant=True
-    # )
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,  
+        bnb_4bit_quant_type='nf4',
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_use_double_quant=True
+    )
     
     model = AutoModelForCausalLM.from_pretrained(MODEL,
                                                  config=config,
-                                                 #quantization_config=bnb_config,
-                                                 torch_dtype=torch.float16,
+                                                 quantization_config=bnb_config,
+                                                 torch_dtype=torch.bfloat16,
                                                  device_map="auto",
                                                  trust_remote_code=True,
-                                                 attn_implementation='eager')
+                                                 )
 
-    # model.config.pad_token_id = tokenizer.pad_token_id
-    # model.resize_token_embeddings(len(tokenizer))
+    model.config.pad_token_id = tokenizer.pad_token_id
+    model.resize_token_embeddings(len(tokenizer))
     #model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     # config = AutoConfig.from_pretrained(MODEL)
     # config.hidden_dropout_prob = args.dropout_rate
@@ -747,7 +772,7 @@ if __name__ == "__main__":
     # args = parser.parse_args()
 
     parser = argparse.ArgumentParser(description='Demo of argparse')
-    parser.add_argument('--config', default='train_gemma2_instruction.yaml', type=str, help='Path to the config file', required=False)
+    parser.add_argument('--config', default='train_llama_instruction_cls_loss.yaml', type=str, help='Path to the config file', required=False)
     args = parser.parse_args()
 
     config = load_config(args.config)
