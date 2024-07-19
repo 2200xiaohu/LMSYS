@@ -652,13 +652,13 @@ def train(args):
     if args.use_cache and os.path.exists(train_cache_path):
         tokenized_dataset = torch.load(train_cache_path)
     else:
-        tokenized_dataset = InstructionDataSet(df_train,tokenizer, args.MAX_INPUT, 1, args.all_in_one)
+        tokenized_dataset = InstructionDataSet(df_train,tokenizer, args.MAX_INPUT, 1)
         torch.save(tokenized_dataset, train_cache_path)
     print(args.use_cache)
     if args.use_cache and os.path.exists(valid_cache_path):
         tokenized_dataset_valid = torch.load(valid_cache_path)
     else:
-        tokenized_dataset_valid = InstructionDataSet(df_valid,tokenizer, args.MAX_INPUT, 1, args.all_in_one)
+        tokenized_dataset_valid = InstructionDataSet(df_valid,tokenizer, args.MAX_INPUT, 1)
         torch.save(tokenized_dataset_valid, valid_cache_path)   
 
     global A_TOKEN_IDS
