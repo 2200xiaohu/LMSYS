@@ -124,12 +124,23 @@ def prompt_3(data, max_length, if_train):
     prompt_response = []
     ids = []
     labels = []
+    #只有一种可能会超出max length：
+    #单条的prompt和reponse加在一起超出max length
+    over_max_length = [] #是否有超出max length的部分
+    overflow_prompt = []
+    overflow_response_a = [] #超出max length的部分
+    overflow_response_b = [] #超出max length的部分
     text_length = 0
     for idx, row in tqdm(data.iterrows(), total=len(data)):
         text = row['prompt_response']
+        response_a = row['response_a']
+        response_b = row['response_b']
+        prompt = row['prompt']
+        id = row['id']
+        
         if if_train:
             label = row['label']
-        id = row['id']
+        
         if id not in ids:
             #第一次出现
             prompt_response.append(text)
@@ -137,24 +148,56 @@ def prompt_3(data, max_length, if_train):
             ids.append(id)
             if if_train:
                 labels.append(label)
+            if text_length > max_length:
+                over_max_length.append(1)
+                overflow_prompt.append(prompt)
+                overflow_response_a.append(response_a)
+                overflow_response_b.append(response_b)
+            else:
+                over_max_length.append(0)
+                overflow_prompt.append(None)
+                overflow_response_a.append(None)
+                overflow_response_b.append(None)
+        
         else:
             text_length += len(text.split(" "))
             if text_length <= max_length:
                 #取上一个text出来，合并后替换
                 text = text + "\n\n" + prompt_response[-1]
                 prompt_response[-1] = text
+                over_max_length[-1] = 0
+                overflow_prompt[-1] = None
+                overflow_response_a[-1] = None
+                overflow_response_b[-1] = None
+                
             else:
                 #另一起一行
                 prompt_response.append(text)
                 text_length = len(text.split(" "))
                 ids.append(id)
+                
                 if if_train:
                     labels.append(label)
+                    
+                #另起一行但超出场合都
+                if text_length > max_length:
+                    over_max_length.append(1)
+                    overflow_prompt.append(prompt)
+                    overflow_response_a.append(response_a)
+                    overflow_response_b.append(response_b)
+                else:
+                    over_max_length.append(0)
+                    overflow_prompt.append(None)
+                    overflow_response_a.append(None)
+                    overflow_response_b.append(None)
+                    
+                
+                    
     if if_train:           
-        data = pd.DataFrame({'id': ids, 'prompt_response': prompt_response, "label": labels})
+        data = pd.DataFrame({'id': ids, 'prompt_response': prompt_response, "label": labels, 'overflow_prompt':overflow_prompt, 'over_max_length': over_max_length, 'overflow_response_a': overflow_response_a, 'overflow_response_b': overflow_response_b})
         data = data.iloc[::-1].reset_index(drop = True)#反转
     else:
-        data = pd.DataFrame({'id': ids, 'prompt_response': prompt_response})
+        data = pd.DataFrame({'id': ids, 'prompt_response': prompt_response, 'over_max_length': over_max_length, 'overflow_prompt':overflow_prompt, 'overflow_response_a': overflow_response_a, 'overflow_response_b': overflow_response_b})
         data = data.iloc[::-1].reset_index(drop = True)#反转
     return data
 
