@@ -270,14 +270,13 @@ seed_everything(42)
 
 from torch.utils.data import Dataset
 class InstructionDataSet(Dataset):
-    def __init__(self, data, tokenizer, max_source_length, max_target_length, all_in_one):
+    def __init__(self, data, tokenizer, max_source_length, max_target_length):
         super(InstructionDataSet, self).__init__()
         #self.data = data.sample(len(data), random_state=0).reset_index(drop=True)
         self.data = data
         self.tokenizer = tokenizer
         self.max_source_length = max_source_length
         self.max_target_length = max_target_length
-        self.all_in_one = all_in_one
         # self.A_token = self.tokenizer.encode(text='A', add_special_tokens=False, truncation=True, )
         # self.B_token = self.tokenizer.encode(text='B', add_special_tokens=False, truncation=True, )
         # self.C_token = self.tokenizer.encode(text='C', add_special_tokens=False, truncation=True, )
@@ -287,6 +286,7 @@ class InstructionDataSet(Dataset):
 
     def __getitem__(self, index):
         now_data = self.data.loc[index]
+        over_max_length = now_data['over_max_length']
         
         templete_part1 = "<start_of_turn>user\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
         templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
@@ -297,21 +297,41 @@ class InstructionDataSet(Dataset):
         templete_part3 = "<start_of_turn>model\n"
         templete_part3_input_ids = self.tokenizer(text=templete_part3, add_special_tokens=True, padding=False)['input_ids'][1:]
         
-        if self.all_in_one:
+        templete_part4_input_ids = self.tokenizer(text="\n\n", add_special_tokens=False, padding=False)['input_ids']
+        
+        if over_max_length:
+            prompt = "#Prompt\n" + now_data['overflow_prompt']
+            r_a = "#Response\n" + "##Model A\n" + now_data['overflow_response_a']
+            r_b = "##Model B\n" + now_data['overflow_response_b']
+            
+            prompt_ids = self.tokenizer(text=prompt, add_special_tokens=False, truncation=False, padding=False)['input_ids']
+            model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=False, truncation=False, padding=False)['input_ids']
+            model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=False, truncation=False, padding=False)['input_ids']
+
+            if len(prompt_ids) + len(model_a_input_ids) + len(model_b_input_ids) <= self.max_source_length:
+                prompt_response_ids = prompt_ids + model_a_input_ids + model_b_input_ids
+            
+            else:
+                '''
+                prompt 和 response 按照 300， 800， 800
+                response 优先
+                多的再给prompt
+                '''
+                length = [len(prompt_ids), len(model_a_input_ids), len(model_b_input_ids)]
+                prompt_max_length, a_max_length, b_max_length = adjust(length)
+                prompt_ids = prompt_ids[:prompt_max_length] + templete_part4_input_ids
+                model_a_input_ids = model_a_input_ids[:a_max_length] + templete_part4_input_ids
+                model_b_input_ids = model_b_input_ids[:b_max_length] + templete_part4_input_ids
+                prompt_response_ids = prompt_ids + model_a_input_ids + model_b_input_ids
+        
+        else:
             prompt_response = now_data['prompt_response']
             #print(f"id is {now_data['id']}")
             #print(prompt_response)
             prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
                                               max_length=self.max_source_length, padding=False)['input_ids'][1:]
             #print(prompt_response_ids)        
-        else:
-            r_a = now_data['instruction_a']
-            r_b = now_data['instruction_b']
-            model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True,
-                                              max_length=self.max_source_length // 2, padding=False)['input_ids']
-            model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True,
-                                              max_length=self.max_source_length // 2, padding=False)['input_ids']
-            prompt_response_ids = model_a_input_ids + model_b_input_ids
+            
             
         label = now_data['label']
         label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
@@ -565,13 +585,13 @@ def train(args):
     if args.use_cache and os.path.exists(train_cache_path):
         tokenized_dataset = torch.load(train_cache_path)
     else:
-        tokenized_dataset = InstructionDataSet(df_train,tokenizer, args.MAX_INPUT, 1, args.all_in_one)
+        tokenized_dataset = InstructionDataSet(df_train,tokenizer, args.MAX_INPUT, 1)
         torch.save(tokenized_dataset, train_cache_path)
     print(args.use_cache)
     if args.use_cache and os.path.exists(valid_cache_path):
         tokenized_dataset_valid = torch.load(valid_cache_path)
     else:
-        tokenized_dataset_valid = InstructionDataSet(df_valid,tokenizer, args.MAX_INPUT, 1, args.all_in_one)
+        tokenized_dataset_valid = InstructionDataSet(df_valid,tokenizer, args.MAX_INPUT, 1)
         torch.save(tokenized_dataset_valid, valid_cache_path)   
 
     global A_TOKEN_IDS
