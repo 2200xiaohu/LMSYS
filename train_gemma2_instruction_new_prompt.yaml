@@ -1,7 +1,7 @@
 data_path: ['dataset/non_overlap/train_33k_switch_10k.json','dataset/mt_bentch_human.json']
 train_data: 'dataset/non_overlap/train_33k.json'
 valid_data: 'dataset/non_overlap/valid.json'
-resume_from_checkpoint: ''
+resume_from_checkpoint: 'output/light-dragon-504/checkpoint-2314'
 all_in_one: True
 prompt_type: 3
 if_train: True
@@ -13,11 +13,11 @@ if_drop_duplicate: True
 keep: 'last'
 per_device_train_batch_size: 1
 per_device_eval_batch_size: 1
-learning_rate: 7.e-5
+learning_rate: 1.e-4
 lr_end: 1.e-6
 warmup_ratio: 0.1
 warmup_steps: 30
-num_train_epochs: 2
+num_train_epochs: 1
 gradient_accumulation_steps: 16
 logging_steps: 10
 eval_steps: 600

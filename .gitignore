@@ -11,3 +11,4 @@ Qwen
 meta-llama-chat
 .ipynb_checkpoints/
 __pycache__/
+llama-3-transformers-8b-hf-v1/
