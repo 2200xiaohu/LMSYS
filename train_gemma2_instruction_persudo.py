@@ -293,15 +293,9 @@ def adjust_values(A, B, a_space, b_space, ex_space):
         return A, B, ex_space
         
     # 第三种情况：A或者B其中有一个大于a_space, b_space
-<<<<<<< HEAD
     elif A >= a_space or B >= b_space:
         # 如果A大于a_space但是B小于b_space
         if A >= a_space and B <= b_space:
-=======
-    elif A > a_space or B > b_space:
-        # 如果A大于a_space但是B小于b_space
-        if A > a_space and B < b_space:
->>>>>>> 47f471b88773baf47a0b58bf435340670a24c8c4
             extra_needed = A - a_space
             ex_space += b_space - B
             #够用
