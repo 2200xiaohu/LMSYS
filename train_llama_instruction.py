@@ -268,46 +268,130 @@ def seed_everything(seed=None):
 
 seed_everything(42)
 
+def adjust_values(A, B, a_space, b_space, ex_space):
+    # 计算A和a_space的差值
+    a_diff = a_space - A
+    b_diff = b_space - B
+    
+    # 第一种情况：A小于a_space，B小于b_space
+    if A < a_space and B < b_space:
+        ex_space += a_diff + b_diff
+        return A, B, ex_space
+
+    # 第二种情况：如果A和B都各自大于自己的space
+    elif A > a_space and B > b_space:
+        total_extra_needed = (A - a_space) + (B - b_space)
+        if total_extra_needed > ex_space:
+            A = int(a_space + ex_space / 2)
+            B = int(b_space + ex_space / 2)
+            ex_space = 0
+        else:
+            a_space = A
+            b_space = B
+            ex_space -= total_extra_needed
+            
+        return A, B, ex_space
+        
+    # 第三种情况：A或者B其中有一个大于a_space, b_space
+    elif A >= a_space or B >= b_space:
+        # 如果A大于a_space但是B小于b_space
+        if A >= a_space and B <= b_space:
+            extra_needed = A - a_space
+            ex_space += b_space - B
+            #够用
+            if ex_space >= extra_needed:
+                ex_space -= extra_needed
+                
+            else:
+                #不够用
+                #b_space = B + available_space
+                A = a_space + ex_space
+                ex_space = 0
+
+        # 如果B大于b_space但是A小于a_space
+        elif B > b_space and A < a_space:
+            extra_needed = B - b_space
+            ex_space += a_space - A
+            
+            if ex_space >= extra_needed:
+                ex_space -= extra_needed
+                
+            else:
+                B = b_space + ex_space
+                ex_space = 0
+
+        return A, B, ex_space
+    
+
+def adjust(current_lengths, prompt_length_space=300, response_length_space=800):
+    prompt_length = current_lengths[0]
+    response_a_length = current_lengths[1]
+    response_b_length = current_lengths[2]
+    #先看prompt的额度
+    ex_space = max(0, prompt_length_space - prompt_length)
+    response_a_length, response_b_length, ex_space = adjust_values(response_a_length, response_b_length, response_length_space, response_length_space, ex_space)
+    prompt_length = min(prompt_length, prompt_length_space)
+    prompt_length += ex_space
+
+    return prompt_length, response_a_length, response_b_length
+    
 from torch.utils.data import Dataset
 class InstructionDataSet(Dataset):
-    def __init__(self, data, tokenizer, max_source_length, max_target_length, all_in_one):
+    def __init__(self, data, tokenizer, max_source_length, max_target_length):
         super(InstructionDataSet, self).__init__()
         #self.data = data.sample(len(data), random_state=0).reset_index(drop=True)
         self.data = data
         self.tokenizer = tokenizer
         self.max_source_length = max_source_length
         self.max_target_length = max_target_length
-        self.all_in_one = all_in_one
-        # self.A_token = self.tokenizer.encode(text='A', add_special_tokens=False, truncation=True, )
-        # self.B_token = self.tokenizer.encode(text='B', add_special_tokens=False, truncation=True, )
-        # self.C_token = self.tokenizer.encode(text='C', add_special_tokens=False, truncation=True, )
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index):
         now_data = self.data.loc[index]
+        over_max_length = now_data['over_max_length']
         
         templete_part1 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHere are two question-answering dialogues. Compare two model performance on answering question, determine which is better.\n\n"
         templete_part1_input_ids = self.tokenizer(text=templete_part1, add_special_tokens=True, padding=False)['input_ids']
 
         templete_part2 = "\n###options\nA. Model A\nB. Model B\nC. Tie\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>"
-        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=True, padding=False)['input_ids']
+        templete_part2_input_ids = self.tokenizer(text=templete_part2, add_special_tokens=False, padding=False)['input_ids']
         
-        if self.all_in_one:
+        templete_part4_input_ids = self.tokenizer(text="\n\n", add_special_tokens=False, padding=False)['input_ids']
+        
+        if over_max_length:
+            prompt = "#Prompt\n" + now_data['overflow_prompt']
+            r_a = "#Response\n" + "##Model A\n" + now_data['overflow_response_a']
+            r_b = "##Model B\n" + now_data['overflow_response_b']
+            
+            prompt_ids = self.tokenizer(text=prompt, add_special_tokens=False, truncation=False, padding=False)['input_ids']
+            model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=False, truncation=False, padding=False)['input_ids']
+            model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=False, truncation=False, padding=False)['input_ids']
+
+            if len(prompt_ids) + len(model_a_input_ids) + len(model_b_input_ids) <= self.max_source_length:
+                prompt_response_ids = prompt_ids + model_a_input_ids + model_b_input_ids
+            
+            else:
+                '''
+                prompt 和 response 按照 300， 800， 800
+                response 优先
+                多的再给prompt
+                '''
+                length = [len(prompt_ids), len(model_a_input_ids), len(model_b_input_ids)]
+                prompt_max_length, a_max_length, b_max_length = adjust(length)
+                prompt_ids = prompt_ids[:prompt_max_length] + templete_part4_input_ids
+                model_a_input_ids = model_a_input_ids[:a_max_length] + templete_part4_input_ids
+                model_b_input_ids = model_b_input_ids[:b_max_length] + templete_part4_input_ids
+                prompt_response_ids = prompt_ids + model_a_input_ids + model_b_input_ids
+        
+        else:
             prompt_response = now_data['prompt_response']
             #print(f"id is {now_data['id']}")
             #print(prompt_response)
-            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=True, truncation=True,
+            prompt_response_ids = self.tokenizer(text=prompt_response, add_special_tokens=False, truncation=True,
                                               max_length=self.max_source_length, padding=False)['input_ids']
-        else:
-            r_a = now_data['instruction_a']
-            r_b = now_data['instruction_b']
-            model_a_input_ids = self.tokenizer(text=r_a, add_special_tokens=True, truncation=True,
-                                              max_length=self.max_source_length // 2, padding=False)['input_ids']
-            model_b_input_ids = self.tokenizer(text=r_b, add_special_tokens=True, truncation=True,
-                                              max_length=self.max_source_length // 2, padding=False)['input_ids']
-            prompt_response_ids = model_a_input_ids + model_b_input_ids
+            #print(prompt_response_ids)       
             
         label = now_data['label']
         label_ids = self.tokenizer.encode(text=label, add_special_tokens=False)
@@ -499,10 +583,10 @@ def train(args):
     if len(args.train_data) != 0:
         #加载基本数据集
         print(f"loading base train data: {args.train_data}")
-        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
     if len(args.valid_data) != 0: 
         print(f"loading base valid data: {args.valid_data}")
-        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
         
     if len(args.data_path) !=0:    
         ### load data
@@ -510,7 +594,7 @@ def train(args):
         ex_train = pd.DataFrame()
         for p in args.data_path:
             print(f"extrnal data {p}")
-            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
             ex_train = pd.concat([ex_train,tmp_train]).reset_index(drop = True)
         #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
         #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
@@ -523,7 +607,7 @@ def train(args):
         #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
         if args.extranal_data == True:
             #得到原有的验证集
-            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate)
+            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
             if args.if_concat:
                 print(f"concat extrnal data and base train data")
                 df_train = pd.concat([df_train, ex_train]).reset_index(drop = True)
@@ -535,6 +619,8 @@ def train(args):
         df_valid = df_valid.loc[:20,:].reset_index(drop = True)
         
     df_train = df_train.sample(len(df_train)).reset_index(drop = True)
+    df_valid['length'] = df_valid['prompt_response'].apply(lambda x: len(x.split(" ")))
+    df_valid = df_valid.sort_values(by = ['length'], ascending = False).reset_index(drop = True)
     # df_train.loc[:, 'prompt'] = df_train['prompt'].apply(process)
     # df_train.loc[:, 'response_a'] = df_train['response_a'].apply(process)
     # df_train.loc[:, 'response_b'] = df_train['response_b'].apply(process)
@@ -561,22 +647,22 @@ def train(args):
     if args.use_cache and os.path.exists(train_cache_path):
         tokenized_dataset = torch.load(train_cache_path)
     else:
-        tokenized_dataset = InstructionDataSet(df_train,tokenizer, args.MAX_INPUT, 1, args.all_in_one)
+        tokenized_dataset = InstructionDataSet(df_train,tokenizer, args.MAX_INPUT, 1)
         torch.save(tokenized_dataset, train_cache_path)
     print(args.use_cache)
     if args.use_cache and os.path.exists(valid_cache_path):
         tokenized_dataset_valid = torch.load(valid_cache_path)
     else:
-        tokenized_dataset_valid = InstructionDataSet(df_valid,tokenizer, args.MAX_INPUT, 1, args.all_in_one)
+        tokenized_dataset_valid = InstructionDataSet(df_valid,tokenizer, args.MAX_INPUT, 1)
         torch.save(tokenized_dataset_valid, valid_cache_path)   
 
     global A_TOKEN_IDS
-    A_TOKEN_IDS = tokenizer('A',add_special_tokens=True, truncation=True, max_length=1024)['input_ids']
+    A_TOKEN_IDS = tokenizer('A',add_special_tokens=False, truncation=True, max_length=1024)['input_ids']
     print(f"A_TOKEN_IDS is {A_TOKEN_IDS}")
     global B_TOKEN_IDS 
-    B_TOKEN_IDS = tokenizer('B',add_special_tokens=True, truncation=True, max_length=1024)['input_ids']
+    B_TOKEN_IDS = tokenizer('B',add_special_tokens=False, truncation=True, max_length=1024)['input_ids']
     global C_TOKEN_IDS 
-    C_TOKEN_IDS = tokenizer('C',add_special_tokens=True, truncation=True, max_length=1024)['input_ids']
+    C_TOKEN_IDS = tokenizer('C',add_special_tokens=False, truncation=True, max_length=1024)['input_ids']
 
     
     # bnb_config = BitsAndBytesConfig(

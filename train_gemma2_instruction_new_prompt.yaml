@@ -1,7 +1,7 @@
 data_path: ['dataset/non_overlap/train_33k_switch_10k.json']
 train_data: 'dataset/non_overlap/train_33k.json'
 valid_data: 'dataset/non_overlap/valid.json'
-resume_from_checkpoint: ''
+resume_from_checkpoint: 'output/light-dragon-504/checkpoint-2314'
 all_in_one: True
 prompt_type: 3
 if_train: True
