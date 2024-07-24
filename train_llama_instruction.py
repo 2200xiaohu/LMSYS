@@ -379,7 +379,9 @@ class InstructionDataSet(Dataset):
                 多的再给prompt
                 '''
                 length = [len(prompt_ids), len(model_a_input_ids), len(model_b_input_ids)]
-                prompt_max_length, a_max_length, b_max_length = adjust(length)
+                prompt_length = int(self.max_source_length // 5)
+                response_length = int((self.max_source_length - prompt_length) // 2)
+                prompt_max_length, a_max_length, b_max_length = adjust(length, prompt_length, response_length)
                 prompt_ids = prompt_ids[:prompt_max_length] + templete_part4_input_ids
                 model_a_input_ids = model_a_input_ids[:a_max_length] + templete_part4_input_ids
                 model_b_input_ids = model_b_input_ids[:b_max_length] + templete_part4_input_ids
