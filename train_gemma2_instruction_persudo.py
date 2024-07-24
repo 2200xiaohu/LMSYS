@@ -268,6 +268,73 @@ def seed_everything(seed=None):
 
 seed_everything(42)
 
+def adjust_values(A, B, a_space, b_space, ex_space):
+    # 计算A和a_space的差值
+    a_diff = a_space - A
+    b_diff = b_space - B
+    
+    # 第一种情况：A小于a_space，B小于b_space
+    if A < a_space and B < b_space:
+        ex_space += a_diff + b_diff
+        return A, B, ex_space
+
+    # 第二种情况：如果A和B都各自大于自己的space
+    elif A > a_space and B > b_space:
+        total_extra_needed = (A - a_space) + (B - b_space)
+        if total_extra_needed > ex_space:
+            A = int(a_space + ex_space / 2)
+            B = int(b_space + ex_space / 2)
+            ex_space = 0
+        else:
+            a_space = A
+            b_space = B
+            ex_space -= total_extra_needed
+            
+        return A, B, ex_space
+        
+    # 第三种情况：A或者B其中有一个大于a_space, b_space
+    elif A >= a_space or B >= b_space:
+        # 如果A大于a_space但是B小于b_space
+        if A >= a_space and B <= b_space:
+            extra_needed = A - a_space
+            ex_space += b_space - B
+            #够用
+            if ex_space >= extra_needed:
+                ex_space -= extra_needed
+                
+            else:
+                #不够用
+                #b_space = B + available_space
+                A = a_space + ex_space
+                ex_space = 0
+
+        # 如果B大于b_space但是A小于a_space
+        elif B > b_space and A < a_space:
+            extra_needed = B - b_space
+            ex_space += a_space - A
+            
+            if ex_space >= extra_needed:
+                ex_space -= extra_needed
+                
+            else:
+                B = b_space + ex_space
+                ex_space = 0
+
+        return A, B, ex_space
+    
+
+def adjust(current_lengths, prompt_length_space=300, response_length_space=800):
+    prompt_length = current_lengths[0]
+    response_a_length = current_lengths[1]
+    response_b_length = current_lengths[2]
+    #先看prompt的额度
+    ex_space = max(0, prompt_length_space - prompt_length)
+    response_a_length, response_b_length, ex_space = adjust_values(response_a_length, response_b_length, response_length_space, response_length_space, ex_space)
+    prompt_length = min(prompt_length, prompt_length_space)
+    prompt_length += ex_space
+
+    return prompt_length, response_a_length, response_b_length
+
 from torch.utils.data import Dataset
 class InstructionDataSet(Dataset):
     def __init__(self, data, tokenizer, max_source_length, max_target_length):
@@ -318,7 +385,9 @@ class InstructionDataSet(Dataset):
                 多的再给prompt
                 '''
                 length = [len(prompt_ids), len(model_a_input_ids), len(model_b_input_ids)]
-                prompt_max_length, a_max_length, b_max_length = adjust(length)
+                prompt_length = int(self.max_source_length // 5)
+                response_length = int((self.max_source_length - prompt_length) // 2)
+                prompt_max_length, a_max_length, b_max_length = adjust(length, prompt_length, response_length)
                 prompt_ids = prompt_ids[:prompt_max_length] + templete_part4_input_ids
                 model_a_input_ids = model_a_input_ids[:a_max_length] + templete_part4_input_ids
                 model_b_input_ids = model_b_input_ids[:b_max_length] + templete_part4_input_ids
