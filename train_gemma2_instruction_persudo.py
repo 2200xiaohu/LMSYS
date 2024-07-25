@@ -773,7 +773,7 @@ def train(args):
     num_warmup_steps = int(args.warmup_ratio * training_args.num_train_epochs * int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /training_args.gradient_accumulation_steps))
     scheduler = get_cosine_schedule_with_warmup(
             optimizer,
-            num_warmup_steps= args.warmup_steps ,
+            num_warmup_steps= num_warmup_steps ,
             num_training_steps=training_args.num_train_epochs *
                 int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
                     training_args.gradient_accumulation_steps),

@@ -577,8 +577,8 @@ def train(args):
     s = strftime("%a_%d_%b_%H_%M", gmtime())
 
     wandb.init(project="LMSYS", config=args)
-    wandb.save("train_gemma2_instruction.py")
-    wandb.save("train_gemma2_instruction.yaml")
+    wandb.save("train_llama_instruction.py")
+    wandb.save("train_llama_instruction.yaml")
     # HUGGING FACE MODEL
     MODEL = args.MODEL
 
