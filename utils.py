@@ -99,6 +99,19 @@ def prompt_2(data, max_length, if_train):
         data = pd.DataFrame({'id': ids, 'prompt_response': prompt_response})
     return data
 
+def get_text_length(text):
+    '''
+    不用空格分隔的文本, text length = len
+    不用空格分隔的一般tokenizer后长度类似，所以还可以缩小
+    空格分隔的，len(text.split(" "))
+    '''
+    length1 = len(text)
+    length2 = len(text.split(" "))
+    #远超过
+    if length1 >= length2 * 30 and length1>= 300:
+        return length1 * 0.75
+    return length2
+    
 def prompt_3(data, max_length, if_train):
     '''
     超过max length新开一行，label不变
@@ -144,7 +157,7 @@ def prompt_3(data, max_length, if_train):
         if id not in ids:
             #第一次出现
             prompt_response.append(text)
-            text_length = len(text.split(" "))
+            text_length = get_text_length(text)
             ids.append(id)
             if if_train:
                 labels.append(label)
@@ -160,7 +173,7 @@ def prompt_3(data, max_length, if_train):
                 overflow_response_b.append(None)
         
         else:
-            text_length += len(text.split(" "))
+            text_length += get_text_length(text)
             if text_length <= max_length:
                 #取上一个text出来，合并后替换
                 text = text + "\n\n" + prompt_response[-1]
@@ -173,7 +186,7 @@ def prompt_3(data, max_length, if_train):
             else:
                 #另一起一行
                 prompt_response.append(text)
-                text_length = len(text.split(" "))
+                text_length = get_text_length(text)
                 ids.append(id)
                 
                 if if_train:
@@ -212,7 +225,7 @@ def make_prompt(data, if_train, prompt_type, max_length):
     data = data.fillna('None')
     data['response_a'] = data['response_a'].apply(lambda x: 'None' if len(x)==0 else x)
     data['response_b'] = data['response_b'].apply(lambda x: 'None' if len(x)==0 else x)
-
+    
     if prompt_type == 1:
         data = prompt_1(data)
     elif prompt_type == 2:

@@ -1,4 +1,4 @@
-data_path: ['dataset/persudo_label/35k_in_1M_prediction_thr0_35k.json', 'dataset/persudo_label/3k_high_quality_method_2_prediction_thr0_3k.json']
+data_path: ['dataset/persudo_label/35k_in_1M_prediction_thr60_35k_by_885_model.json', 'dataset/persudo_label/3k_high_quality_method_2_prediction_thr0_3k_by_885_model.json']
 train_data: ''
 valid_data: 'dataset/non_overlap/valid.json'
 resume_from_checkpoint: ''
@@ -17,13 +17,13 @@ learning_rate: 1.e-6
 lr_end: 1.e-6
 warmup_ratio: 0.1
 warmup_steps: 10
-num_train_epochs: 1
+num_train_epochs: 2
 gradient_accumulation_steps: 16
 logging_steps: 10
 eval_steps: 600
 save_steps: 100
 weight_decay: 1.e-5
-MAX_INPUT: 2200
+MAX_INPUT: 2100
 MODEL: 'google/gemma-2-9b-it'
 dropout_rate: 0.1
 awp_lr: 0

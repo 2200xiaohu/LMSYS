@@ -234,7 +234,7 @@ def collate_fn(batch):
 
 
 from utils import load_split_data
-data_path = "dataset/persudo_label/35k_in_1M_prediction_thr0_35k.json"
+data_path = "dataset/persudo_label/3k_high_quality_method_2_prediction_thr0_3k.json"
 prompt_type = 3
 MAX_INPUT = 1900
 if_train = False
