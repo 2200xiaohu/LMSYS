@@ -584,8 +584,8 @@ def train(args):
     s = strftime("%a_%d_%b_%H_%M", gmtime())
 
     wandb.init(project="LMSYS", config=args)
-    wandb.save("train_gemma2_instruction_persudo.py")
-    wandb.save("train_gemma2_instruction_persudo.yaml")
+    wandb.save("train_gemma2_instruction_persudo_new_loss.py")
+    wandb.save("train_gemma2_instruction_persudo_new_loss.yaml")
     # HUGGING FACE MODEL
     MODEL = args.MODEL
 
@@ -837,7 +837,7 @@ if __name__ == "__main__":
     # args = parser.parse_args()
 
     parser = argparse.ArgumentParser(description='Demo of argparse')
-    parser.add_argument('--config', default='train_gemma2_instruction_persudo.yaml', type=str, help='Path to the config file', required=False)
+    parser.add_argument('--config', default='train_gemma2_instruction_persudo_new_loss.yaml', type=str, help='Path to the config file', required=False)
     args = parser.parse_args()
 
     config = load_config(args.config)

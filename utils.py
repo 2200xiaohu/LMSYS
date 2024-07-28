@@ -246,28 +246,12 @@ def load_split_data(data_path, prompt_type, max_length, if_train, split, split_b
         data = pd.read_json(data_path)
         
     if split:
-        if split_by_prompt:
-            # 提取唯一的 prompt 进行划分
-            data['prompt_str'] = data['prompt'].astype(str)
-            unique_prompts = data['prompt_str'].unique()
-            train_prompts, valid_prompts = train_test_split(unique_prompts, test_size=0.1, random_state=42)
-
-            train_prompts_set = set(train_prompts)
-            valid_prompts_set = set(valid_prompts)
-            
-            # 根据划分的 prompt 获取对应的行
-            train = data[data['prompt_str'].isin(train_prompts_set)].reset_index(drop = True)
-            valid = data[data['prompt_str'].isin(valid_prompts_set)].reset_index(drop = True)
-            train = train.drop(columns = ['prompt_str'])
-            valid = valid.drop(columns = ['prompt_str'])
-            
-        else: 
-            #split train and valid
-            idx = data.id.unique()
-            valid_idx = [idx[i] for i in range(len(idx)) if i % 20 == 0]
-            
-            valid = data.loc[data.id.isin(valid_idx),].reset_index(drop = True)
-            train = data.loc[~data.id.isin(valid_idx),].reset_index(drop = True)
+        #split train and valid
+        idx = data.id.unique()
+        valid_idx = [idx[i] for i in range(len(idx)) if i % 20 == 0]
+        
+        valid = data.loc[data.id.isin(valid_idx),].reset_index(drop = True)
+        train = data.loc[~data.id.isin(valid_idx),].reset_index(drop = True)
             
         train = make_prompt(train, if_train, prompt_type, max_length)
         valid = make_prompt(valid, if_train, prompt_type, max_length)
