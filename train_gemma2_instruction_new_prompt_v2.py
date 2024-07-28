@@ -490,10 +490,10 @@ def train(args):
     if len(args.train_data) != 0:
         #加载基本数据集
         print(f"loading base train data: {args.train_data}")
-        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
+        df_train, _ = load_split_data(args.train_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep, MODEL)
     if len(args.valid_data) != 0: 
         print(f"loading base valid data: {args.valid_data}")
-        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
+        df_valid, _ = load_split_data(args.valid_data, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep, MODEL)
         
     if len(args.data_path) !=0:    
         ### load data
@@ -501,7 +501,7 @@ def train(args):
         ex_train = pd.DataFrame()
         for p in args.data_path:
             print(f"extrnal data {p}")
-            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
+            tmp_train , _ = load_split_data(p, args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep, MODEL)
             ex_train = pd.concat([ex_train,tmp_train]).reset_index(drop = True)
         #df_train = pd.read_csv(args.train_data).reset_index(drop = True)
         #df_valid = pd.read_csv(args.valid_data).reset_index(drop = True)
@@ -514,7 +514,7 @@ def train(args):
         #     df_valid = df_valid.loc[:500,:].reset_index(drop = True)
         if args.extranal_data == True:
             #得到原有的验证集
-            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep)
+            df_valid, _ = load_split_data('dataset/non_overlap/valid.json', args.prompt_type, args.MAX_INPUT, args.if_train, False, False, args.if_drop_duplicate, args.keep, MODEL)
             if args.if_concat:
                 print(f"concat extrnal data and base train data")
                 df_train = pd.concat([df_train, ex_train]).reset_index(drop = True)
