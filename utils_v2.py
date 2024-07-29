@@ -190,6 +190,18 @@ def make_prompt(data, if_train, prompt_type, max_length, tokenizer):
     #prepare label
     if if_train:
         data['label'] = data.apply(lambda x: get_label(x), axis = 1)
+        
+    '''
+    单个id有超过两条以上的对话，就将都为None的丢掉
+    否则保留
+    '''
+    idx = data.response_b.isna() & data.response_a.isna()#都为none
+    t = data[idx].id.unique()
+    all_none = data.loc[data.id.isin(t)].reset_index(drop = True)
+    count = all_none.id.value_counts().reset_index()
+    drop_id = count.loc[count['count']>1].id.unique()
+    filter_idx = data.id.isin(drop_id) & idx
+    data = data[~filter_idx].reset_index(drop = True)
     
     data = data.fillna('None')
     data['response_a'] = data['response_a'].apply(lambda x: 'None' if len(x)==0 else x)
