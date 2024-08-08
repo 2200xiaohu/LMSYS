@@ -586,6 +586,7 @@ def train(args):
     wandb.init(project="LMSYS", config=args)
     wandb.save("train_gemma2_instruction_new_prompt.py")
     wandb.save("train_gemma2_instruction_new_prompt.yaml")
+    wandb.save("utils.py")
     # HUGGING FACE MODEL
     MODEL = args.MODEL
 
@@ -678,16 +679,16 @@ def train(args):
     #     bnb_8bit_use_double_quant=False
     # )
 
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,  
-        bnb_4bit_quant_type='nf4',
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=True
-    )
+    # bnb_config = BitsAndBytesConfig(
+    #     load_in_4bit=True,  
+    #     bnb_4bit_quant_type='nf4',
+    #     bnb_4bit_compute_dtype=torch.bfloat16,
+    #     bnb_4bit_use_double_quant=True
+    # )
     
     model = AutoModelForCausalLM.from_pretrained(MODEL,
                                                  config=config,
-                                                 quantization_config=bnb_config,
+                                                 #quantization_config=bnb_config,
                                                  torch_dtype=torch.bfloat16,
                                                  device_map="auto",
                                                  trust_remote_code=True,
@@ -719,6 +720,11 @@ def train(args):
             target_modules=['q_proj','k_proj','v_proj','o_proj'] #,
         )
         model = get_peft_model(model, peft_config)
+
+    #set lora data type        
+    for param in filter(lambda p: p.requires_grad, model.parameters()):
+        param.data = param.data.to(torch.bfloat16)
+        
     print(model.print_trainable_parameters())
     # for key in model.state_dict():
     #     print(f"{key}, {model.state_dict()[key].shape}, {model.state_dict()[key].dtype}")

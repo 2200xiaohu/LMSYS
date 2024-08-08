@@ -484,6 +484,7 @@ def train(args):
     wandb.init(project="LMSYS", config=args)
     wandb.save("train_gemma2_instruction_new_prompt_v2.py")
     wandb.save("train_gemma2_instruction_new_prompt_v2.yaml")
+    wandb.save("utils_v2.py")
     # HUGGING FACE MODEL
     MODEL = args.MODEL
 
@@ -659,23 +660,25 @@ def train(args):
     
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_args.learning_rate)
 
-    # scheduler = get_polynomial_decay_schedule_with_warmup(
-    #     optimizer,
-    #     num_warmup_steps=training_args.warmup_steps,
-    #     num_training_steps=training_args.num_train_epochs *
-    #     int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
-    #         training_args.gradient_accumulation_steps),
-    #     power=1.0,
-    #     lr_end=args.lr_end
-    # )
     num_warmup_steps = int(args.warmup_ratio * training_args.num_train_epochs * int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /training_args.gradient_accumulation_steps))
-    scheduler = get_cosine_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps= num_warmup_steps ,
-            num_training_steps=training_args.num_train_epochs *
-                int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
-                    training_args.gradient_accumulation_steps),
-            num_cycles = 0.5)#3
+    scheduler = get_polynomial_decay_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=num_warmup_steps,
+        num_training_steps=training_args.num_train_epochs *
+        int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
+            training_args.gradient_accumulation_steps),
+        power=1.0,
+        lr_end=args.lr_end
+    )
+    
+    # num_warmup_steps = int(args.warmup_ratio * training_args.num_train_epochs * int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /training_args.gradient_accumulation_steps))
+    # scheduler = get_cosine_schedule_with_warmup(
+    #         optimizer,
+    #         num_warmup_steps= num_warmup_steps ,
+    #         num_training_steps=training_args.num_train_epochs *
+    #             int(len(tokenized_dataset) * 1.0 / training_args.per_device_train_batch_size /
+    #                 training_args.gradient_accumulation_steps),
+    #         num_cycles = 0.5)#3
     trainer = CustomTrainer(
         model=model,
         args=training_args,
